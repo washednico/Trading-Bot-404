@@ -1,9 +1,9 @@
-import time
-import datetime
 from ib_insync import *
 import pandas as pd
 import json
 from copy import deepcopy
+from ta.momentum import RSIIndicator
+from ta.trend import SMAIndicator
 
 def boot_IB():
     util.startLoop()
@@ -25,17 +25,20 @@ def get_parameters(ib,pair):
 
     # convert to a pandas dataframe:
     myData = util.df(bars)
-    last_5_days_close = myData['close'].tail(5)
-    last_25_days_close = myData['close'].tail(25)
+    
+    SMA5_series = SMAIndicator(close=myData['close'], window=5).sma_indicator()
+    SMA25_series = SMAIndicator(close=myData['close'], window=25).sma_indicator()
+    RSI_series = RSIIndicator(close=myData['close'], window=14).rsi()
 
-    if average_last_5_days > average_last_25_days:
-        sma_period = "buy_period"
-    else:
-        sma_period = "short_period"
+    #if SMA5_series[-1] > SMA25_series[-1]:
+      #  sma_period = "buy_period"
+    #else:
+       # sma_period = "short_period"
+    sma_period = "ciao"
 
-    return last_5_days_close.std(), last_5_days_close.mean(), last_25_days_close.mean(), sma_period
+    return SMA5_series, SMA25_series, RSI_series, sma_period, myData
 
-def trigger_start(config,ib):
+def detect_cross_SMA(config,ib):
     start = True
     while True:
         std_deviation, average_last_5_days, average_last_25_days, sma_period = get_parameters(ib, config['pair'])
@@ -45,16 +48,52 @@ def trigger_start(config,ib):
         else:
             if old_sma_period != sma_period:
                 print(f"Detected a cross between the SMA periods")
+
+
+def plot_indicators(SMA5_series, SMA25_series, RSI_series, myData):
+    import matplotlib.pyplot as plt
+
+    # Create the figure and primary axis
+    fig, ax1 = plt.subplots(figsize=(12, 8))  # Increasing the figure size
+
+    # Plot RSI on primary y-axis
+    ax1.plot(myData.index, RSI_series, color='blue', label='RSI')
+    ax1.set_ylabel('RSI', color='blue')
+    ax1.tick_params(axis='y', labelcolor='blue')
+
+    # Create a secondary y-axis for the SMA and price data
+    ax2 = ax1.twinx()
+
+    # Plot SMA5, SMA25, and close prices
+    ax2.plot(myData.index, SMA5_series, color='red', label='SMA5')
+    ax2.plot(myData.index, SMA25_series, color='green', label='SMA25')
+    ax2.plot(myData.index, myData['close'], color='black', label='Close')
+    ax2.set_ylabel('Price Indicators', color='black')
+    ax2.tick_params(axis='y', labelcolor='black')
+
+
+    # Combine legends from both axes
+    lines, labels = ax1.get_legend_handles_labels()
+    lines2, labels2 = ax2.get_legend_handles_labels()
+    ax2.legend(lines + lines2, labels + labels2, loc='upper left')
+
+    # Improve layout to make room for rotated x-axis labels
+    plt.tight_layout()  # This might help to avoid clipping of labels
+
+    plt.show()
+
         
 
 
-    
-
-
 myAccount, ib = boot_IB()
+
 config = get_config()
-std_deviation, average_last_5_days, average_last_25_days = get_parameters(ib,config['pair'])
-trigger_start(config,ib)
+
+SMA5_series, SMA25_series, RSI_series, sma_period, myData = get_parameters(ib,config['pair'])
+
+plot_indicators(SMA5_series, SMA25_series, RSI_series, myData)
+
+detect_cross_SMA(config,ib)
 
 
 
