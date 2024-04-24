@@ -1,5 +1,13 @@
 {
     "pair" : "USDCHF",
-    "take_profit" : 0.3,
-    "lot_size" : 0.01
+    "barSizeSetting" : "4 hours",
+    "durationStr" : "4 Y",
+    "SMA_small_duration" : 30,
+    "SMA_big_duration" : 150,
+    "RSI_duration" : 84,
+    "bolinger_band_duration" : 120,
+    "bolinger_band_std_dev" : 2,
+    "RSI_high" : 70,
+    "RSI_low" : 30,
+    "sleep_time" : 60
 }
