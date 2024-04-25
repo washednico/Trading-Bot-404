@@ -9,5 +9,7 @@
     "bolinger_band_std_dev" : 2,
     "RSI_high" : 70,
     "RSI_low" : 30,
-    "sleep_time" : 60
+    "sleep_time" : 60,
+    "minimum_indicators_to_open" : 2,
+    "Trening" : "False"
 }

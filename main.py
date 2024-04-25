@@ -12,6 +12,7 @@ def welcome():
     print(f.renderText('Trading Bot'))
     print("\n\n\nWelcome to the trading bot, remeber to open your IB Gateway before running the bot!")
     input("Press enter to continue...")
+    print("\n\n\n")
 
 def print_strings(string):
     print("["+str(datetime.datetime.now())+"]\t"+string)
@@ -29,8 +30,6 @@ def boot_IB():
         print_strings("Error connecting to IB Gateway")
         return None, None
         
-    
-
 def get_config():
     print_strings("Loading config file...")
     try:
@@ -49,7 +48,7 @@ def get_parameters(ib,config):
         bars = ib.reqHistoricalData(
             contract, endDateTime='', durationStr= config["durationStr"],
             barSizeSetting= config["barSizeSetting"], whatToShow='MIDPOINT', useRTH=0) # if you want, you can show BID or ASK
-        print_strings("historical data for "+config["pair"]+" downloaded")
+        print_strings("Historical data for "+config["pair"]+" downloaded")
     except:
         print_strings("Error downloading historical data for "+config["pair"])
         return None, None, None, None, None, None
@@ -94,8 +93,20 @@ def detect_trigger(config,ib):
             bollinger_value = 1
         else:
             bollinger_value = 0
+        
+        if cross_value + RSI_value + bollinger_value >= config["minimum_indicators_to_open"]:
+            if bool(config["Trending"]):
+                print("BUY")
+            else:
+                print("SHORT")
+        elif cross_value + RSI_value + bollinger_value <= -config["minimum_indicators_to_open"]:
+            if bool(config["Trending"]):
+                print("SHORT")
+            else:
+                print("BUY")
 
-        print(RSI_value, cross_value, bollinger_value)
+        print_strings(str(abs(cross_value)+abs(RSI_value)+abs(bollinger_value))+" Indicators met")
+        sleep(config["sleep_time"])
             
 
 
@@ -142,7 +153,6 @@ def plot_indicators(SMA5_series, SMA25_series, RSI_series, myData, Bollinger_H_s
 welcome()
 
 myAccount, ib = boot_IB()
-
 config = get_config()
 
 detect_trigger(config,ib)
@@ -151,11 +161,3 @@ detect_trigger(config,ib)
 
 #SMA5_series, SMA25_series, RSI_series, Bollinger_H_series, Bollinger_L_series, myData = get_parameters(ib,config)
 #plot_indicators(SMA5_series, SMA25_series, RSI_series, myData, Bollinger_H_series, Bollinger_L_series)
-
-
-
-
-
-
-
-    
