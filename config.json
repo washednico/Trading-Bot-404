@@ -11,5 +11,5 @@
     "RSI_low" : 30,
     "sleep_time" : 60,
     "minimum_indicators_to_open" : 2,
-    "Trening" : "False"
+    "Trending" : "False"
 }

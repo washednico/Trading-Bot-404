@@ -74,23 +74,23 @@ def detect_trigger(config,ib):
         SMA5_series, SMA25_series, RSI_series, Bollinger_H_series, Bollinger_L_series, myData = get_parameters(ib, config)
         
         if SMA5_series.iloc[-1] > SMA25_series.iloc[-1] and SMA5_series.iloc[-2] < SMA25_series.iloc[-2]:
-            cross_value = -1
+            cross_value = -1 #long
         elif SMA5_series.iloc[-1] < SMA25_series.iloc[-1] and SMA5_series.iloc[-2] > SMA25_series.iloc[-2]:
             cross_value = 1
         else:
             cross_value = 0
         
         if RSI_series.iloc[-1] > config["RSI_high"]:
-            RSI_value = -1
-        elif RSI_series.iloc[-1] < config["RSI_low"]:
             RSI_value = 1
+        elif RSI_series.iloc[-1] < config["RSI_low"]:
+            RSI_value = -1
         else:
             RSI_value = 0
         
         if myData['close'].iloc[-1] > Bollinger_H_series.iloc[-1]:
-            bollinger_value = -1
-        elif myData['close'].iloc[-1] < Bollinger_L_series.iloc[-1]:
             bollinger_value = 1
+        elif myData['close'].iloc[-1] < Bollinger_L_series.iloc[-1]:
+            bollinger_value = -1
         else:
             bollinger_value = 0
         
