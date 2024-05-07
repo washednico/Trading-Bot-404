@@ -20,7 +20,6 @@ def print_strings(string):
 def boot_IB():
     try:
         print_strings("IB Gateway connecting...")
-        util.startLoop()
         ib = IB()
         ib.connect('127.0.0.1', 7497, clientId=1)
         myAccount = ib.accountSummary()
@@ -41,8 +40,14 @@ def get_config():
         print_strings("Error loading config file")
         return None
     
-def get_parameters(ib,config):
+def get_contract(config):
     contract = Forex(config["pair"])
+    return contract
+    #FOREX PAIR ARE ALWAYS SHORTABLE
+
+    
+def get_parameters(ib,config,contract):
+
     print_strings("Getting historical data for "+config["pair"]+"...")
     try:
         bars = ib.reqHistoricalData(
@@ -67,11 +72,11 @@ def get_parameters(ib,config):
         print_strings("Error calculating indicators")
         return None, None, None, None, None, None
 
-    return SMA5_series, SMA25_series, RSI_series, Bollinger_H_series, Bollinger_L_series, myData
+    return SMA5_series, SMA25_series, RSI_series, Bollinger_H_series, Bollinger_L_series, myData, contract
 
 def detect_trigger(config,ib):
     while True:
-        SMA5_series, SMA25_series, RSI_series, Bollinger_H_series, Bollinger_L_series, myData = get_parameters(ib, config)
+        SMA5_series, SMA25_series, RSI_series, Bollinger_H_series, Bollinger_L_series, myData, contract = get_parameters(ib, config)
         
         if SMA5_series.iloc[-1] > SMA25_series.iloc[-1] and SMA5_series.iloc[-2] < SMA25_series.iloc[-2]:
             cross_value = -1 #long
@@ -94,28 +99,32 @@ def detect_trigger(config,ib):
         else:
             bollinger_value = 0
         
+
         if cross_value + RSI_value + bollinger_value >= config["minimum_indicators_to_open"]:
+            order_info = {}
             if bool(config["Trending"]):
-                print("BUY")
+                order_info["type"] = "BUY"
             else:
-                print("SHORT")
+                order_info["type"] = "SELL"
+            open_market(contract, order_info, ib)
         elif cross_value + RSI_value + bollinger_value <= -config["minimum_indicators_to_open"]:
+            order_info = {}
             if bool(config["Trending"]):
-                print("SHORT")
+                order_info["type"] = "SELL"
             else:
-                print("BUY")
+                order_info["type"] = "BUY"
+            open_market(contract, order_info, ib)
 
         print_strings(str(abs(cross_value)+abs(RSI_value)+abs(bollinger_value))+" Indicators met")
         sleep(config["sleep_time"])
-            
 
 
+def open_market(contract, order_info, ib):
+    order = MarketOrder(order_info["type"], 100)
+    trade = ib.placeOrder(contract, order)
+    print(trade.fillEvent)
 
-def open_long(pair, price, take_profit, stop_loss):
-    None
 
-def open_short(pair, price, take_profit, stop_loss):
-    None
 
 
 def plot_indicators(SMA5_series, SMA25_series, RSI_series, myData, Bollinger_H_series, Bollinger_L_series):
@@ -154,8 +163,9 @@ welcome()
 
 myAccount, ib = boot_IB()
 config = get_config()
+contract = get_contract(config)
 
-detect_trigger(config,ib)
+detect_trigger(config,ib,contract)
 
 
 
