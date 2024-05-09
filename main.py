@@ -35,17 +35,143 @@ def get_config():
         with open('config.json') as f:
             config = json.load(f)
         print_strings("Config file loaded")
-        return config
+
+        if config["Martingale_max"] <= 5:
+            return config
+        else:
+            print_strings("Martingale_max should be less than 5")
     except:
         print_strings("Error loading config file")
         return None
     
 def get_contract(config):
-    contract = Forex(config["pair"])
-    return contract
+    try:
+        print_strings("Getting contract for "+config["pair"]+"...")
+        contract = Forex(config["pair"])
+        print_strings("Contract for "+config["pair"]+" retrived!")
+        return contract
+    except:
+        print_strings("Error getting contract for "+config["pair"])
+        return None
     #FOREX PAIR ARE ALWAYS SHORTABLE
 
+def detect_trigger(config,ib,contract):
+    while True:
+        SMA5_series, SMA25_series, RSI_series, Bollinger_H_series, Bollinger_L_series, myData, contract = get_parameters(ib, config,contract)
+        
+        if SMA5_series.iloc[-1] > SMA25_series.iloc[-1] and SMA5_series.iloc[-2] < SMA25_series.iloc[-2]:
+            cross_value = -1 #long
+        elif SMA5_series.iloc[-1] < SMA25_series.iloc[-1] and SMA5_series.iloc[-2] > SMA25_series.iloc[-2]:
+            cross_value = 1
+        else:
+            cross_value = 0
+        
+        if RSI_series.iloc[-1] > config["RSI_high"]:
+            RSI_value = 1
+        elif RSI_series.iloc[-1] < config["RSI_low"]:
+            RSI_value = -1
+        else:
+            RSI_value = 0
+        
+        if myData['close'].iloc[-1] > Bollinger_H_series.iloc[-1]:
+            bollinger_value = 1
+        elif myData['close'].iloc[-1] < Bollinger_L_series.iloc[-1]:
+            bollinger_value = -1
+        else:
+            bollinger_value = 0
+
+        
+        print_strings(str(abs(cross_value)+abs(RSI_value)+abs(bollinger_value))+" Indicators met")
+
+        if cross_value + RSI_value + bollinger_value >= config["minimum_indicators_to_open"]:
+            order_info = {}
+            if bool(config["Trending"]):
+                order_info["type"] = "BUY"
+            else:
+                order_info["type"] = "SELL"
+            initiate_strategy(contract, order_info, ib, config, myData)
+            #handle after
+        elif cross_value + RSI_value + bollinger_value <= -config["minimum_indicators_to_open"]:
+            order_info = {}
+            if bool(config["Trending"]):
+                order_info["type"] = "SELL"
+            else:
+                order_info["type"] = "BUY"
+            initiate_strategy(contract, order_info, ib, config, myData)
+            #handle after
+        else:
+            sleep(config["sleep_time"])
+
+
+def initiate_strategy(contract, order_info, ib, config, myData):
+    print_strings("Sending market order: SIZE: "+str(config["Initial_size_trade"])+" TYPE: "+order_info["type"])
+    order = MarketOrder(order_info["type"], config["Initial_size_trade"])
+    trade = ib.placeOrder(contract, order)
+    print_strings("Market order sent!")
     
+    fill_processed = [False]  
+    def on_fill(trade, fill):
+        get_fibonacci_levels(myData, fill, config, order_info,ib)
+        fill_processed[0] = True  
+    trade.fillEvent += on_fill  
+    while not fill_processed[0]:
+        ib.sleep(0.5)
+
+    
+    
+def get_fibonacci_levels(myData, fill,config, order_info,ib):
+    fill_price = fill.execution.price
+    print_strings("Market order filled! PRICE:"+str(fill_price))
+    highest_price = myData['high'].tail(config["Fibonacci_duration"]).max()
+    lowest_price = myData['low'].tail(config["Fibonacci_duration"]).min()
+
+    #if myData['high'].idxmax() > myData['low'].idxmin():
+     #   latest_price = highest_price
+    #else:
+     #   latest_price = lowest_price
+    
+    delta_diff = highest_price - lowest_price
+    
+    retracements = {
+        1: [(fill_price+delta_diff*0.236).round(4),(fill_price-delta_diff*0.236).round(4)],
+        2: [(fill_price+delta_diff*0.382).round(4),(fill_price-delta_diff*0.382).round(4)],
+        3: [(fill_price+delta_diff*0.5).round(4),(fill_price-delta_diff*0.5).round(4)],
+        4: [(fill_price+delta_diff*0.618).round(4),(fill_price-delta_diff*0.618).round(4)],
+        5: [(fill_price+delta_diff*0.786).round(4),(fill_price-delta_diff*0.786).round(4)]
+    }
+
+    print_strings("Fibonacci retracements calculated!")
+    
+    print_strings("Sending limit orders...")
+
+    
+    
+    send_limit_orders(order_info, config,ib,retracements)
+
+def send_limit_orders(order_info, config,ib,retracements):
+    
+    for i in range(1,config["Martingale_max"]+1):
+        if order_info["type"] == "BUY":
+            price_limit = retracements[i][1]
+        else:
+            price_limit = retracements[i][0]
+        
+        size = round(config["Initial_size_trade"]*config["Martingale_multiplier"]**i,4)
+
+        print_strings("Placing limit order: SIZE: "+str(size)+" TYPE: "+order_info["type"]+" PRICE: "+str(price_limit))
+        order = LimitOrder(order_info["type"], size, price_limit)
+        trade = ib.placeOrder(contract, order)
+        print_strings("Limit order placed!")
+
+            
+    
+    
+
+    
+
+        
+
+
 def get_parameters(ib,config,contract):
 
     print_strings("Getting historical data for "+config["pair"]+"...")
@@ -74,55 +200,9 @@ def get_parameters(ib,config,contract):
 
     return SMA5_series, SMA25_series, RSI_series, Bollinger_H_series, Bollinger_L_series, myData, contract
 
-def detect_trigger(config,ib):
-    while True:
-        SMA5_series, SMA25_series, RSI_series, Bollinger_H_series, Bollinger_L_series, myData, contract = get_parameters(ib, config)
-        
-        if SMA5_series.iloc[-1] > SMA25_series.iloc[-1] and SMA5_series.iloc[-2] < SMA25_series.iloc[-2]:
-            cross_value = -1 #long
-        elif SMA5_series.iloc[-1] < SMA25_series.iloc[-1] and SMA5_series.iloc[-2] > SMA25_series.iloc[-2]:
-            cross_value = 1
-        else:
-            cross_value = 0
-        
-        if RSI_series.iloc[-1] > config["RSI_high"]:
-            RSI_value = 1
-        elif RSI_series.iloc[-1] < config["RSI_low"]:
-            RSI_value = -1
-        else:
-            RSI_value = 0
-        
-        if myData['close'].iloc[-1] > Bollinger_H_series.iloc[-1]:
-            bollinger_value = 1
-        elif myData['close'].iloc[-1] < Bollinger_L_series.iloc[-1]:
-            bollinger_value = -1
-        else:
-            bollinger_value = 0
-        
 
-        if cross_value + RSI_value + bollinger_value >= config["minimum_indicators_to_open"]:
-            order_info = {}
-            if bool(config["Trending"]):
-                order_info["type"] = "BUY"
-            else:
-                order_info["type"] = "SELL"
-            open_market(contract, order_info, ib)
-        elif cross_value + RSI_value + bollinger_value <= -config["minimum_indicators_to_open"]:
-            order_info = {}
-            if bool(config["Trending"]):
-                order_info["type"] = "SELL"
-            else:
-                order_info["type"] = "BUY"
-            open_market(contract, order_info, ib)
-
-        print_strings(str(abs(cross_value)+abs(RSI_value)+abs(bollinger_value))+" Indicators met")
-        sleep(config["sleep_time"])
-
-
-def open_market(contract, order_info, ib):
-    order = MarketOrder(order_info["type"], 100)
-    trade = ib.placeOrder(contract, order)
-    print(trade.fillEvent)
+        
+    #order = LimitOrder(order_info["type"], config["Initial_size_trade"], trade.orderStatus.avgFillPrice + config["Stop_loss"])
 
 
 

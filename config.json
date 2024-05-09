@@ -11,13 +11,15 @@
     "RSI_high" : 70,
     "RSI_low" : 30,
 
+    "Fibonacci_duration" : 20,
+
     
-    "minimum_indicators_to_open" : 2,
+    "minimum_indicators_to_open" : 0,
     "Trending" : "False",
 
     "Martingale_multiplier" : 1.3,
-    "Martingale_max" : 3,
-    "Initial_size_trade" : 250000,
+    "Martingale_max" : 3, 
+    "Initial_size_trade" : 25000,
     "Max_drawdown" : 0.05,
 
     "sleep_time" : 60
