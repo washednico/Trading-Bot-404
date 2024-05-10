@@ -8,9 +8,9 @@ import datetime
 from time import sleep
 
 def welcome():
-    f = Figlet(font='larry3d')
-    print(f.renderText('Trading Bot'))
-    print("\n\n\nWelcome to the trading bot, remeber to open your IB Gateway before running the bot!")
+    f = Figlet(font='small')
+    print(f.renderText('404 Profit Not Found'))
+    print("\n\n\nWelcome to the trading bot, remember to open your IB Gateway before running the bot!")
     input("Press enter to continue...")
     print("\n\n\n")
 
@@ -163,11 +163,9 @@ def send_limit_orders(order_info, config,ib,retracements):
         trade = ib.placeOrder(contract, order)
         print_strings("Limit order placed!")
 
-            
-    
-    
 
-    
+def send_tp(size, price, ib):
+    None
 
         
 
