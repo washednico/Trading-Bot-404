@@ -1,7 +1,7 @@
 {
     "pair" : "USDCHF",
     "barSizeSetting" : "4 hours",
-    "durationStr" : "4 Y",
+    "durationStr" : "1 Y",
 
     "SMA_small_duration" : 30,
     "SMA_big_duration" : 150,
@@ -12,7 +12,6 @@
     "RSI_low" : 30,
 
     "Fibonacci_duration" : 20,
-
     
     "minimum_indicators_to_open" : 0,
     "Trending" : "False",
@@ -20,7 +19,9 @@
     "Martingale_multiplier" : 1.3,
     "Martingale_max" : 3, 
     "Initial_size_trade" : 25000,
+    
     "Max_drawdown" : 0.05,
+    "Take_profit" : 0.02,
 
     "sleep_time" : 60
 

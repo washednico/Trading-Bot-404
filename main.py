@@ -102,26 +102,23 @@ def detect_trigger(config,ib,contract):
         else:
             sleep(config["sleep_time"])
 
-
 def initiate_strategy(contract, order_info, ib, config, myData):
     print_strings("Sending market order: SIZE: "+str(config["Initial_size_trade"])+" TYPE: "+order_info["type"])
     order = MarketOrder(order_info["type"], config["Initial_size_trade"])
     trade = ib.placeOrder(contract, order)
     print_strings("Market order sent!")
     
-    fill_processed = [False]  
+    fill_processed = [False] 
     def on_fill(trade, fill):
-        get_fibonacci_levels(myData, fill, config, order_info,ib)
+        get_fibonacci_levels(myData, fill, config, order_info,ib,contract)
         fill_processed[0] = True  
     trade.fillEvent += on_fill  
     while not fill_processed[0]:
         ib.sleep(0.5)
-
     
-    
-def get_fibonacci_levels(myData, fill,config, order_info,ib):
+def get_fibonacci_levels(myData, fill,config, order_info,ib,contract):
     fill_price = fill.execution.price
-    print_strings("Market order filled! PRICE:"+str(fill_price))
+    print_strings("Market order filled! PRICE: "+str(fill_price))
     highest_price = myData['high'].tail(config["Fibonacci_duration"]).max()
     lowest_price = myData['low'].tail(config["Fibonacci_duration"]).min()
 
@@ -141,14 +138,11 @@ def get_fibonacci_levels(myData, fill,config, order_info,ib):
     }
 
     print_strings("Fibonacci retracements calculated!")
-    
-    print_strings("Sending limit orders...")
 
-    
-    
-    send_limit_orders(order_info, config,ib,retracements)
+    send_tp(order_info,fill_price,ib,config,contract)
+    send_limit_orders(order_info, config,ib,retracements,contract)
 
-def send_limit_orders(order_info, config,ib,retracements):
+def send_limit_orders(order_info, config,ib,retracements,contract):
     
     for i in range(1,config["Martingale_max"]+1):
         if order_info["type"] == "BUY":
@@ -163,12 +157,17 @@ def send_limit_orders(order_info, config,ib,retracements):
         trade = ib.placeOrder(contract, order)
         print_strings("Limit order placed!")
 
+def send_tp(order_info, price, ib, config,contract):
+    
+    if order_info["type"] == "BUY": order_type = "SELL"
+    else: order_type = "BUY"
+    
+    price_limit = round((config["Take_profit"]+1)*price,4)
 
-def send_tp(size, price, ib):
-    None
-
-        
-
+    print_strings("Placing take profit: SIZE: "+ str(config["Initial_size_trade"])+" TYPE: "+order_type+" PRICE: "+str(price_limit))
+    order = LimitOrder(order_type, config["Initial_size_trade"], price_limit)
+    trade = ib.placeOrder(contract, order)
+    print_strings("Take profit placed!")
 
 def get_parameters(ib,config,contract):
 
@@ -201,9 +200,6 @@ def get_parameters(ib,config,contract):
 
         
     #order = LimitOrder(order_info["type"], config["Initial_size_trade"], trade.orderStatus.avgFillPrice + config["Stop_loss"])
-
-
-
 
 def plot_indicators(SMA5_series, SMA25_series, RSI_series, myData, Bollinger_H_series, Bollinger_L_series):
     import matplotlib.pyplot as plt
