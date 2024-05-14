@@ -1,7 +1,7 @@
 {
     "pair" : "USDCHF",
-    "barSizeSetting" : "4 hours",
-    "durationStr" : "1 Y",
+    "barSizeSetting" : "30 secs",
+    "durationStr" : "1 D",
 
     "SMA_small_duration" : 30,
     "SMA_big_duration" : 150,
@@ -21,8 +21,9 @@
     "Initial_size_trade" : 25000,
     
     "Max_drawdown" : 0.05,
-    "Take_profit" : 0.02,
+    "Take_profit" : 0.005,
 
-    "sleep_time" : 60
+    "sleep_time" : 60,
+    "Monitoring_order_sleep" : 0.5
 
 }
