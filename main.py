@@ -90,6 +90,7 @@ def detect_trigger(config,ib,contract):
             else:
                 order_info["type"] = "SELL"
             initiate_strategy(contract, order_info, ib, config, myData)
+            break
             #handle after
         elif cross_value + RSI_value + bollinger_value <= -config["minimum_indicators_to_open"]:
             order_info = {}
@@ -98,6 +99,7 @@ def detect_trigger(config,ib,contract):
             else:
                 order_info["type"] = "BUY"
             initiate_strategy(contract, order_info, ib, config, myData)
+            break
             #handle after
         else:
             sleep(config["sleep_time"])
@@ -122,9 +124,9 @@ def initiate_strategy(contract, order_info, ib, config, myData):
     while not fill_processed[0]:
         ib.sleep(0.5)
 
-    tp_type = send_tp(order_info,fill_price,ib,config,contract)
-    sizes_tp = send_limit_orders(order_info, config,ib,retracements,contract,fill_price)
-    monitor_and_check_orders(ib, contract, order_info, config, tp_type, sizes_tp)
+    tp_type, tp_trade = send_tp(order_info,fill_price,ib,config,contract)
+    sizes_tp, limit_trades = send_limit_orders(order_info, config,ib,retracements,contract,fill_price)
+    monitor_and_check_orders(ib, contract, order_info, config, tp_type, sizes_tp, tp_trade, limit_trades)
   
 def get_fibonacci_levels(myData, fill,config):
     fill_price = fill.execution.price
@@ -152,12 +154,27 @@ def get_fibonacci_levels(myData, fill,config):
     
     return retracements, fill_price
 
-def send_limit_orders(order_info, config,ib,retracements,contract,fill_price):
+def send_tp(order_info, price, ib, config,contract):
+    tp_trade = []
+    if order_info["type"] == "BUY": order_type = "SELL"
+    else: order_type = "BUY"
+    
+    price_limit = round((config["Take_profit"]+1)*price,4)
 
+    print_strings("Placing take profit: SIZE: "+ str(config["Initial_size_trade"])+" TYPE: "+order_type+" PRICE: "+str(price_limit))
+    order = LimitOrder(order_type, config["Initial_size_trade"], price_limit)
+    trade = ib.placeOrder(contract, order)
+    tp_trade.append(trade)
+    print_strings("Take profit placed!")
+    return order_type, tp_trade
+
+def send_limit_orders(order_info, config,ib,retracements,contract,fill_price):
     sizes_tp = {}
     cumulative_size = config["Initial_size_trade"]
     total_value = config["Initial_size_trade"] * fill_price
     
+    limit_trades = []
+
     for i in range(1,config["Martingale_max"]+1):
         if order_info["type"] == "BUY":
             price_limit = retracements[i][1]
@@ -169,6 +186,7 @@ def send_limit_orders(order_info, config,ib,retracements,contract,fill_price):
         print_strings("Placing limit order: SIZE: "+str(size)+" TYPE: "+order_info["type"]+" PRICE: "+str(price_limit))
         order = LimitOrder(order_info["type"], size, price_limit)
         trade = ib.placeOrder(contract, order)
+        limit_trades.append(trade)
         print_strings("Limit order placed!")
 
         
@@ -182,76 +200,66 @@ def send_limit_orders(order_info, config,ib,retracements,contract,fill_price):
             tp_price = average_price * (1 - config["Take_profit"] / 100)
 
         # Store size and TP price in the dictionary
-        sizes_tp[i] = {'tp_size': round(size,4), 'tp_price': round(tp_price,4)}
+        sizes_tp[i] = {'tp_size': round(cumulative_size,4), 'tp_price': round(tp_price,4)}
     
-    return sizes_tp
+    return sizes_tp, limit_trades
 
-def send_tp(order_info, price, ib, config,contract):
-    
-    if order_info["type"] == "BUY": order_type = "SELL"
-    else: order_type = "BUY"
-    
-    price_limit = round((config["Take_profit"]+1)*price,4)
-
-    print_strings("Placing take profit: SIZE: "+ str(config["Initial_size_trade"])+" TYPE: "+order_type+" PRICE: "+str(price_limit))
-    order = LimitOrder(order_type, config["Initial_size_trade"], price_limit)
-    trade = ib.placeOrder(contract, order)
-    print_strings("Take profit placed!")
-    return order_type
-
-
-def monitor_and_check_orders(ib, contract, order_info, config, tp_type, sizes_tp):
+def monitor_and_check_orders(ib, contract, order_info, config, tp_type, sizes_tp, tp_trade,  limit_trades):
     take_profit_filled = False
     filled_limit_orders_count = 0  # Counter for filled limit orders
     canceled_orders = set()  # Track canceled orders
 
-    print_strings("Initiated orders monitoring...")
-
-    all_trades = ib.trades()
-    relevant_trades = [
-        trade for trade in all_trades 
-        if trade.contract == contract and isinstance(trade.order, LimitOrder)
-    ]
+    important_trades = tp_trade + limit_trades
     
-    print_strings(f"Monitoring {len(relevant_trades)} relevant trades...")  # Debugging line
+    print_strings(f"Monitoring {len(important_trades)} relevant trades...")  # Debugging line
 
     def handle_order_status(trade):
         nonlocal filled_limit_orders_count, take_profit_filled
-        print_strings(f"Order status changed: {trade.orderStatus.status}")  # Debugging line
+          
         if trade.orderStatus.status == 'Filled':
-            if trade.order.action == tp_type:
+            
+            important_trades.remove(trade)
+            
+            if trade in tp_trade:
                 print_strings("Take profit filled! Cancelling all other orders.")
-                for other_trade in relevant_trades:
-                    if other_trade.order.orderId != trade.order.orderId and other_trade.order.orderId not in canceled_orders:
-                        if other_trade.orderStatus.status not in ['Filled', 'Cancelled']:
+                for other_trade in limit_trades:
                             ib.cancelOrder(other_trade.order)
                             canceled_orders.add(other_trade.order.orderId)
                             print_strings(f"Order {other_trade.order.orderId} cancelled.")
                 take_profit_filled = True
-            elif trade.order.action == order_info["type"]:
+            
+            elif trade in limit_trades:
+
+                limit_trades.remove(trade)
+                
                 filled_limit_orders_count += 1
-                print_strings("Limit order filled! Adjusting TP price.")
+                print_strings(f"{filled_limit_orders_count}st limit order filled! Adjusting TP price.")
                 
                 tp_details = sizes_tp[filled_limit_orders_count]
-                tp_order_id = trade.order.permId  # Assuming direct mapping for simplification
+
+                tp_old = tp_trade[0]
+                tp_trade.remove(tp_old)
                 
-                for other_trade in relevant_trades:
-                    if other_trade.order.orderId == tp_order_id and other_trade.order.orderId not in canceled_orders:
-                        if other_trade.orderStatus.status not in ['Filled', 'Cancelled']:
-                            ib.cancelOrder(other_trade.order)
-                            canceled_orders.add(other_trade.order.orderId)
-                            print_strings(f"Order {tp_order_id} cancelled.")
+                ib.cancelOrder(tp_old.order)
+                canceled_orders.add(tp_old.order.orderId)
+                print_strings(f"Order {tp_old.order.orderId} cancelled.")
                 
                 new_order = LimitOrder(tp_type, tp_details['tp_size'], tp_details['tp_price'])
-                ib.placeOrder(contract, new_order)
+                new_tp = ib.placeOrder(contract, new_order)
+                
+                tp_trade.append(new_tp)
+
+                new_tp.statusEvent += handle_order_status
+                important_trades.append(new_tp)
+
                 print_strings(f"New TP order placed: SIZE {tp_details['tp_size']} PRICE {tp_details['tp_price']}")
 
-    for trade in relevant_trades:
+    for trade in important_trades:
         trade.statusEvent += handle_order_status
-        print_strings(f"Attached statusEvent to trade {trade.order.orderId} with initial status {trade.orderStatus.status}")  # Debugging line
+        print_strings(f"Trade {trade.order.orderId} monitoring started!")  # Debugging line
 
     while not take_profit_filled:
-        for trade in relevant_trades:
+        for trade in important_trades:
             print("["+str(datetime.datetime.now())+"]\t"+"Monitoring open orders...", end='\r')
             ib.sleep(config["Monitoring_order_sleep"])
 
