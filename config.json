@@ -13,7 +13,7 @@
 
     "Fibonacci_duration" : 20,
     
-    "minimum_indicators_to_open" : 0,
+    "minimum_indicators_to_open" : 2,
     "Trending" : "False",
 
     "Martingale_multiplier" : 1.3,
