@@ -81,9 +81,38 @@ Press enter to continue...
 [2024-09-02 11:40:10.083534]    Indicators calculated
 [2024-09-02 11:40:10.083974]    0 Indicators met
 
+.
+.
+.
+
+[2024-09-02 12:43:38.215261]    2 Indicators met
+[2024-09-02 12:43:38.215298]    Sending market order: SIZE: 25000 TYPE: SELL
+[2024-09-02 12:43:38.216027]    Market order sent!
+[2024-09-02 12:43:45.546295]    Market order filled! PRICE: 0.85057
+[2024-09-02 12:43:45.550644]    Fibonacci retracements calculated!
+[2024-09-02 12:43:45.742782]    Placing take profit: SIZE: 25000 TYPE: BUY PRICE: 0.8548
+[2024-09-02 12:43:45.744345]    Take profit placed!
+[2024-09-02 12:43:45.744447]    Placing limit order: SIZE: 32500.0 TYPE: SELL PRICE: 0.8511
+[2024-09-02 12:43:45.745334]    Limit order placed!
+[2024-09-02 12:43:45.745402]    Placing limit order: SIZE: 42250.0 TYPE: SELL PRICE: 0.8514
+[2024-09-02 12:43:45.746218]    Limit order placed!
+[2024-09-02 12:43:45.746268]    Placing limit order: SIZE: 54925.0 TYPE: SELL PRICE: 0.8516
+[2024-09-02 12:43:45.747113]    Limit order placed!
+[2024-09-02 12:43:45.747217]    Monitoring 4 relevant trades...
+[2024-09-02 12:43:45.747240]    Trade 6 monitoring started!
+[2024-09-02 12:43:45.747255]    Trade 7 monitoring started!
+[2024-09-02 12:43:45.747269]    Trade 8 monitoring started!
+[2024-09-02 12:43:45.747282]    Trade 9 monitoring started!
 
 .
 .
 .
+.
+
+[2024-09-02 12:43:50.980604]    Take profit filled! Cancelling all other orders.
+[2024-09-02 12:43:50.981925]    Order 7 cancelled.
+[2024-09-02 12:43:50.983041]    Order 8 cancelled.
+[2024-09-02 12:43:50.984128]    Order 9 cancelled.
+
 
 ```

@@ -61,7 +61,7 @@ def get_parameters(ib,config,contract):
     try:
         bars = ib.reqHistoricalData(
             contract, endDateTime='', durationStr= config["durationStr"],
-            barSizeSetting= config["barSizeSetting"], whatToShow='MIDPOINT', useRTH=0) # if you want, you can show BID or ASK
+            barSizeSetting= config["barSizeSetting"], whatToShow='MIDPOINT', useRTH=0)
         print_strings("Historical data for "+config["pair"]+" downloaded")
     except:
         print_strings("Error downloading historical data for "+config["pair"])
@@ -115,7 +115,7 @@ def detect_trigger(config,ib,contract):
         SMA5_series, SMA25_series, RSI_series, Bollinger_H_series, Bollinger_L_series, myData, contract = get_parameters(ib, config,contract)
         
         if SMA5_series.iloc[-1] > SMA25_series.iloc[-1] and SMA5_series.iloc[-2] < SMA25_series.iloc[-2]:
-            cross_value = -1 #long
+            cross_value = -1 
         elif SMA5_series.iloc[-1] < SMA25_series.iloc[-1] and SMA5_series.iloc[-2] > SMA25_series.iloc[-2]:
             cross_value = 1
         else:
@@ -140,22 +140,32 @@ def detect_trigger(config,ib,contract):
 
         if cross_value + RSI_value + bollinger_value >= config["minimum_indicators_to_open"]:
             order_info = {}
-            if bool(config["Trending"]):
+            if config["Trending"].lower() == "true":
                 order_info["type"] = "BUY"
             else:
                 order_info["type"] = "SELL"
+            
             initiate_strategy(contract, order_info, ib, config, myData)
-            break
-            #handle after
+
+            if config["monitor_forever"].lower() == "false":
+                break
+            else:
+                sleep(config["sleep_time"])
+    
         elif cross_value + RSI_value + bollinger_value <= -config["minimum_indicators_to_open"]:
             order_info = {}
-            if bool(config["Trending"]):
+            if config["Trending"].lower() == "true":
                 order_info["type"] = "SELL"
             else:
                 order_info["type"] = "BUY"
+            
             initiate_strategy(contract, order_info, ib, config, myData)
-            break
-            #handle after
+            
+            if config["monitor_forever"].lower() == "false":
+                break
+            else:
+                sleep(config["sleep_time"])
+
         else:
             sleep(config["sleep_time"])
 
@@ -288,7 +298,7 @@ def monitor_and_check_orders(ib, contract, order_info, config, tp_type, sizes_tp
 
     for trade in important_trades:
         trade.statusEvent += handle_order_status
-        print_strings(f"Trade {trade.order.orderId} monitoring started!")  # Debugging line
+        print_strings(f"Trade {trade.order.orderId} monitoring started!")  
 
     while not take_profit_filled:
         for trade in important_trades:
