@@ -36,6 +36,12 @@ Trading bot for forex. It checks for SMA Cross, Bollinger Bands and RSI. Once on
 }
 ```
 
+## Graphic Representation of Indicators Calculated
+![alt text](https://github.com/washednico/trading_project/blob/main/img/indicators.png?raw=true)
+![alt text](https://github.com/washednico/trading_project/blob/main/img/indicators2.png?raw=true)
+
+
+## Example of Execution
 
 ```text
  _ _   __  _ _    ___          __ _ _     _  _     _     ___                 _ 
@@ -74,5 +80,10 @@ Press enter to continue...
 [2024-09-02 11:40:10.067637]    Calculating indicators...
 [2024-09-02 11:40:10.083534]    Indicators calculated
 [2024-09-02 11:40:10.083974]    0 Indicators met
+
+
+.
+.
+.
 
 ```

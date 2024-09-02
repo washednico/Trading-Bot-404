@@ -55,6 +55,61 @@ def get_contract(config):
         return None
     #FOREX PAIR ARE ALWAYS SHORTABLE
 
+def get_parameters(ib,config,contract):
+
+    print_strings("Getting historical data for "+config["pair"]+"...")
+    try:
+        bars = ib.reqHistoricalData(
+            contract, endDateTime='', durationStr= config["durationStr"],
+            barSizeSetting= config["barSizeSetting"], whatToShow='MIDPOINT', useRTH=0) # if you want, you can show BID or ASK
+        print_strings("Historical data for "+config["pair"]+" downloaded")
+    except:
+        print_strings("Error downloading historical data for "+config["pair"])
+        return None, None, None, None, None, None
+    # convert to a pandas dataframe:
+    
+    try:
+        print_strings("Calculating indicators...")
+        myData = util.df(bars)
+        SMA5_series = SMAIndicator(close=myData['close'], window=config["SMA_small_duration"]).sma_indicator()
+        SMA25_series = SMAIndicator(close=myData['close'], window=config["SMA_big_duration"]).sma_indicator()
+        RSI_series = RSIIndicator(close=myData['close'], window=config["RSI_duration"]).rsi()
+        Bollinger_H_series = BollingerBands(close=myData['close'], window=config["bolinger_band_duration"], window_dev=config["bolinger_band_std_dev"]).bollinger_hband()
+        Bollinger_L_series = BollingerBands(close=myData['close'], window=config["bolinger_band_duration"], window_dev=config["bolinger_band_std_dev"]).bollinger_lband()
+        print_strings("Indicators calculated")
+    except:
+        print_strings("Error calculating indicators")
+        return None, None, None, None, None, None
+
+    return SMA5_series, SMA25_series, RSI_series, Bollinger_H_series, Bollinger_L_series, myData, contract
+
+def get_fibonacci_levels(myData, fill,config):
+    fill_price = fill.execution.price
+    print_strings("Market order filled! PRICE: "+str(fill_price))
+    highest_price = myData['high'].tail(config["Fibonacci_duration"]).max()
+    lowest_price = myData['low'].tail(config["Fibonacci_duration"]).min()
+
+    #if myData['high'].idxmax() > myData['low'].idxmin():
+     #   latest_price = highest_price
+    #else:
+     #   latest_price = lowest_price
+    
+    delta_diff = highest_price - lowest_price
+    
+    retracements = {
+        1: [(fill_price+delta_diff*0.236).round(4),(fill_price-delta_diff*0.236).round(4)],
+        2: [(fill_price+delta_diff*0.382).round(4),(fill_price-delta_diff*0.382).round(4)],
+        3: [(fill_price+delta_diff*0.5).round(4),(fill_price-delta_diff*0.5).round(4)],
+        4: [(fill_price+delta_diff*0.618).round(4),(fill_price-delta_diff*0.618).round(4)],
+        5: [(fill_price+delta_diff*0.786).round(4),(fill_price-delta_diff*0.786).round(4)]
+    }
+    
+    print_strings("Fibonacci retracements calculated!")
+
+    
+    return retracements, fill_price
+
+
 def detect_trigger(config,ib,contract):
     while True:
         SMA5_series, SMA25_series, RSI_series, Bollinger_H_series, Bollinger_L_series, myData, contract = get_parameters(ib, config,contract)
@@ -104,6 +159,7 @@ def detect_trigger(config,ib,contract):
         else:
             sleep(config["sleep_time"])
 
+
 def initiate_strategy(contract, order_info, ib, config, myData):
     print_strings("Sending market order: SIZE: "+str(config["Initial_size_trade"])+" TYPE: "+order_info["type"])
     order = MarketOrder(order_info["type"], config["Initial_size_trade"])
@@ -128,31 +184,7 @@ def initiate_strategy(contract, order_info, ib, config, myData):
     sizes_tp, limit_trades = send_limit_orders(order_info, config,ib,retracements,contract,fill_price)
     monitor_and_check_orders(ib, contract, order_info, config, tp_type, sizes_tp, tp_trade, limit_trades)
   
-def get_fibonacci_levels(myData, fill,config):
-    fill_price = fill.execution.price
-    print_strings("Market order filled! PRICE: "+str(fill_price))
-    highest_price = myData['high'].tail(config["Fibonacci_duration"]).max()
-    lowest_price = myData['low'].tail(config["Fibonacci_duration"]).min()
 
-    #if myData['high'].idxmax() > myData['low'].idxmin():
-     #   latest_price = highest_price
-    #else:
-     #   latest_price = lowest_price
-    
-    delta_diff = highest_price - lowest_price
-    
-    retracements = {
-        1: [(fill_price+delta_diff*0.236).round(4),(fill_price-delta_diff*0.236).round(4)],
-        2: [(fill_price+delta_diff*0.382).round(4),(fill_price-delta_diff*0.382).round(4)],
-        3: [(fill_price+delta_diff*0.5).round(4),(fill_price-delta_diff*0.5).round(4)],
-        4: [(fill_price+delta_diff*0.618).round(4),(fill_price-delta_diff*0.618).round(4)],
-        5: [(fill_price+delta_diff*0.786).round(4),(fill_price-delta_diff*0.786).round(4)]
-    }
-    
-    print_strings("Fibonacci retracements calculated!")
-
-    
-    return retracements, fill_price
 
 def send_tp(order_info, price, ib, config,contract):
     tp_trade = []
@@ -264,34 +296,6 @@ def monitor_and_check_orders(ib, contract, order_info, config, tp_type, sizes_tp
             ib.sleep(config["Monitoring_order_sleep"])
 
 
-def get_parameters(ib,config,contract):
-
-    print_strings("Getting historical data for "+config["pair"]+"...")
-    try:
-        bars = ib.reqHistoricalData(
-            contract, endDateTime='', durationStr= config["durationStr"],
-            barSizeSetting= config["barSizeSetting"], whatToShow='MIDPOINT', useRTH=0) # if you want, you can show BID or ASK
-        print_strings("Historical data for "+config["pair"]+" downloaded")
-    except:
-        print_strings("Error downloading historical data for "+config["pair"])
-        return None, None, None, None, None, None
-    # convert to a pandas dataframe:
-    
-    try:
-        print_strings("Calculating indicators...")
-        myData = util.df(bars)
-        SMA5_series = SMAIndicator(close=myData['close'], window=config["SMA_small_duration"]).sma_indicator()
-        SMA25_series = SMAIndicator(close=myData['close'], window=config["SMA_big_duration"]).sma_indicator()
-        RSI_series = RSIIndicator(close=myData['close'], window=config["RSI_duration"]).rsi()
-        Bollinger_H_series = BollingerBands(close=myData['close'], window=config["bolinger_band_duration"], window_dev=config["bolinger_band_std_dev"]).bollinger_hband()
-        Bollinger_L_series = BollingerBands(close=myData['close'], window=config["bolinger_band_duration"], window_dev=config["bolinger_band_std_dev"]).bollinger_lband()
-        print_strings("Indicators calculated")
-    except:
-        print_strings("Error calculating indicators")
-        return None, None, None, None, None, None
-
-    return SMA5_series, SMA25_series, RSI_series, Bollinger_H_series, Bollinger_L_series, myData, contract
-
 
         
     #order = LimitOrder(order_info["type"], config["Initial_size_trade"], trade.orderStatus.avgFillPrice + config["Stop_loss"])
@@ -334,9 +338,10 @@ myAccount, ib = boot_IB()
 config = get_config()
 contract = get_contract(config)
 
+#SMA5_series, SMA25_series, RSI_series, Bollinger_H_series, Bollinger_L_series, myData, contract = get_parameters(ib,config,contract)
+#plot_indicators(SMA5_series, SMA25_series, RSI_series, myData, Bollinger_H_series, Bollinger_L_series)
+
 detect_trigger(config,ib,contract)
 
 
 
-#SMA5_series, SMA25_series, RSI_series, Bollinger_H_series, Bollinger_L_series, myData = get_parameters(ib,config)
-#plot_indicators(SMA5_series, SMA25_series, RSI_series, myData, Bollinger_H_series, Bollinger_L_series)
