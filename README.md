@@ -31,7 +31,8 @@ Trading bot for forex. It checks for SMA Cross, Bollinger Bands and RSI. Once on
     "Take_profit" : 0.005,
 
     "sleep_time" : 60,
-    "Monitoring_order_sleep" : 0.5
+    "Monitoring_order_sleep" : 0.5,
+    "monitor_forever" : "False"
 
 }
 ```

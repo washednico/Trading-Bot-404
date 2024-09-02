@@ -198,10 +198,15 @@ def initiate_strategy(contract, order_info, ib, config, myData):
 
 def send_tp(order_info, price, ib, config,contract):
     tp_trade = []
-    if order_info["type"] == "BUY": order_type = "SELL"
-    else: order_type = "BUY"
+    if order_info["type"] == "BUY": 
+        order_type = "SELL"
+    else: 
+        order_type = "BUY"
     
-    price_limit = round((config["Take_profit"]+1)*price,4)
+    if order_type == "BUY":
+        price_limit = round((1-config["Take_profit"])*price,4)
+    else:
+        price_limit = round((config["Take_profit"]+1)*price,4)
 
     print_strings("Placing take profit: SIZE: "+ str(config["Initial_size_trade"])+" TYPE: "+order_type+" PRICE: "+str(price_limit))
     order = LimitOrder(order_type, config["Initial_size_trade"], price_limit)
@@ -352,6 +357,3 @@ contract = get_contract(config)
 #plot_indicators(SMA5_series, SMA25_series, RSI_series, myData, Bollinger_H_series, Bollinger_L_series)
 
 detect_trigger(config,ib,contract)
-
-
-
