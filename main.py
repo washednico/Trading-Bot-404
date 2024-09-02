@@ -22,12 +22,30 @@ def boot_IB():
         print_strings("IB Gateway connecting...")
         ib = IB()
         ib.connect('127.0.0.1', 7497, clientId=1)
-        myAccount = ib.accountSummary()
         print_strings("IB Gateway connected")
-        return myAccount, ib
     except:
         print_strings("Error connecting to IB Gateway")
+        return None
+
+    try:
+        print_strings("Retrieving Account Information...")
+        myAccount = ib.accountSummary()
+        available_funds = {}
+        for item in myAccount:
+            if item.tag == 'TotalCashBalance':
+                available_funds[item.currency] = float(item.value)
+            if item.tag == 'AvailableFunds':
+                home_currency = item.currency
+        initial_funds = available_funds[home_currency]
+        
+        
+        print_strings("Available funds: "+str(initial_funds)+" "+home_currency)
+        
+        return myAccount, ib, home_currency, initial_funds
+    
+    except:
         return None, None
+
         
 def get_config():
     print_strings("Loading config file...")
@@ -55,12 +73,45 @@ def get_contract(config):
         return None
     #FOREX PAIR ARE ALWAYS SHORTABLE
 
+def check_parameters(contract, home_currency, ib, initial_funds,config):
+
+    if home_currency.lower() not in config["pair"].lower():
+        print_strings("PLEASE USE A PAIR WITH YOUR HOME CURRENCY")
+        return None
+    
+    if config["pair"].lower().startswith(home_currency.lower()):
+        base_currency = False
+    else:
+        base_currency = True
+    
+    ticker = ib.reqMktData(contract)
+    ib.sleep(2)  
+    exchange_rate = ticker.ask
+
+    max_amount = config["Initial_size_trade"]
+    for i in range(1,config["Martingale_max"]+1):
+        max_amount += config["Initial_size_trade"]*config["Martingale_multiplier"]**i
+    
+    if not base_currency:
+        max_amount = max_amount * exchange_rate
+
+    if max_amount > initial_funds:
+        print_strings("PLEASE DECREASE THE MAXIMUM MARTINGALE AMOUNT, MARTINGAL MULTIPLIER OR INITIAL SIZE TRADE.")
+        print_strings("IT'S SUGGESTED TO AVOID USING MORE THAN AVAILABLE FUNDS TO AVOID MARGIN CALLS")
+        input("Please close the program....")
+        return None
+
+    return True
+        
+
+
+
 def get_parameters(ib,config,contract):
 
     print_strings("Getting historical data for "+config["pair"]+"...")
     try:
         bars = ib.reqHistoricalData(
-            contract, endDateTime='', durationStr= config["durationStr"],
+            contract, endDateTime='', durationStr = config["durationStr"],
             barSizeSetting= config["barSizeSetting"], whatToShow='MIDPOINT', useRTH=0)
         print_strings("Historical data for "+config["pair"]+" downloaded")
     except:
@@ -89,19 +140,14 @@ def get_fibonacci_levels(myData, fill,config):
     highest_price = myData['high'].tail(config["Fibonacci_duration"]).max()
     lowest_price = myData['low'].tail(config["Fibonacci_duration"]).min()
 
-    #if myData['high'].idxmax() > myData['low'].idxmin():
-     #   latest_price = highest_price
-    #else:
-     #   latest_price = lowest_price
-    
     delta_diff = highest_price - lowest_price
     
     retracements = {
-        1: [(fill_price+delta_diff*0.236).round(4),(fill_price-delta_diff*0.236).round(4)],
-        2: [(fill_price+delta_diff*0.382).round(4),(fill_price-delta_diff*0.382).round(4)],
-        3: [(fill_price+delta_diff*0.5).round(4),(fill_price-delta_diff*0.5).round(4)],
-        4: [(fill_price+delta_diff*0.618).round(4),(fill_price-delta_diff*0.618).round(4)],
-        5: [(fill_price+delta_diff*0.786).round(4),(fill_price-delta_diff*0.786).round(4)]
+        1: [(fill_price+delta_diff*0.236).round(4),  (fill_price-delta_diff*0.236).round(4)],
+        2: [(fill_price+delta_diff*0.382).round(4),  (fill_price-delta_diff*0.382).round(4)],
+        3: [(fill_price+delta_diff*0.5).round(4),    (fill_price-delta_diff*0.5).round(4)],
+        4: [(fill_price+delta_diff*0.618).round(4),   (fill_price-delta_diff*0.618).round(4)],
+        5: [(fill_price+delta_diff*0.786).round(4),   (fill_price-delta_diff*0.786).round(4)]
     }
     
     print_strings("Fibonacci retracements calculated!")
@@ -110,7 +156,7 @@ def get_fibonacci_levels(myData, fill,config):
     return retracements, fill_price
 
 
-def detect_trigger(config,ib,contract):
+def detect_trigger(config,ib,contract,initial_funds):
     while True:
         SMA5_series, SMA25_series, RSI_series, Bollinger_H_series, Bollinger_L_series, myData, contract = get_parameters(ib, config,contract)
         
@@ -145,7 +191,7 @@ def detect_trigger(config,ib,contract):
             else:
                 order_info["type"] = "SELL"
             
-            initiate_strategy(contract, order_info, ib, config, myData)
+            initiate_strategy(contract, order_info, ib, config, myData, initial_funds)
 
             if config["monitor_forever"].lower() == "false":
                 break
@@ -159,7 +205,7 @@ def detect_trigger(config,ib,contract):
             else:
                 order_info["type"] = "BUY"
             
-            initiate_strategy(contract, order_info, ib, config, myData)
+            initiate_strategy(contract, order_info, ib, config, myData,initial_funds)
             
             if config["monitor_forever"].lower() == "false":
                 break
@@ -170,7 +216,7 @@ def detect_trigger(config,ib,contract):
             sleep(config["sleep_time"])
 
 
-def initiate_strategy(contract, order_info, ib, config, myData):
+def initiate_strategy(contract, order_info, ib, config, myData, iniital_funds):
     print_strings("Sending market order: SIZE: "+str(config["Initial_size_trade"])+" TYPE: "+order_info["type"])
     order = MarketOrder(order_info["type"], config["Initial_size_trade"])
     trade = ib.placeOrder(contract, order)
@@ -182,7 +228,7 @@ def initiate_strategy(contract, order_info, ib, config, myData):
 
     def on_fill(trade, fill):
         nonlocal retracements, fill_price
-        retracements, fill_price = get_fibonacci_levels(myData, fill, config)
+        retracements, fill_price = get_fibonacci_levels(myData, fill, config, initial_funds)
         fill_processed[0] = True  
     
     trade.fillEvent += on_fill  
@@ -192,7 +238,7 @@ def initiate_strategy(contract, order_info, ib, config, myData):
 
     tp_type, tp_trade = send_tp(order_info,fill_price,ib,config,contract)
     sizes_tp, limit_trades = send_limit_orders(order_info, config,ib,retracements,contract,fill_price)
-    monitor_and_check_orders(ib, contract, order_info, config, tp_type, sizes_tp, tp_trade, limit_trades)
+    monitor_and_check_orders(ib, contract, order_info, config, tp_type, sizes_tp, tp_trade, limit_trades, initial_funds)
   
 
 
@@ -251,7 +297,7 @@ def send_limit_orders(order_info, config,ib,retracements,contract,fill_price):
     
     return sizes_tp, limit_trades
 
-def monitor_and_check_orders(ib, contract, order_info, config, tp_type, sizes_tp, tp_trade,  limit_trades):
+def monitor_and_check_orders(ib, contract, order_info, config, tp_type, sizes_tp, tp_trade,  limit_trades, initial_funds):
     take_profit_filled = False
     filled_limit_orders_count = 0  # Counter for filled limit orders
     canceled_orders = set()  # Track canceled orders
@@ -307,7 +353,9 @@ def monitor_and_check_orders(ib, contract, order_info, config, tp_type, sizes_tp
 
     while not take_profit_filled:
         for trade in important_trades:
-            print("["+str(datetime.datetime.now())+"]\t"+"Monitoring open orders...", end='\r')
+            print("["+str(datetime.datetime.now())+"]\t"+"Monitoring open orders and balance...", end='\r')
+            #CHECK BALANCE AND MARGIN CALL AND DRAWDOWN
+            #if margin call or drawdown, cancel all orders and close position
             ib.sleep(config["Monitoring_order_sleep"])
 
 
@@ -349,13 +397,15 @@ def plot_indicators(SMA5_series, SMA25_series, RSI_series, myData, Bollinger_H_s
 
 welcome()
 
-myAccount, ib = boot_IB()
+myAccount, ib, home_currency, initial_funds = boot_IB()
 config = get_config()
 contract = get_contract(config)
+if check_parameters(contract, home_currency, ib, initial_funds,config):
+    detect_trigger(config,ib,contract,initial_funds)
+    print_strings("All orders filled, closing connection...")
+    input("Press enter to close the connection...")
+
 
 #SMA5_series, SMA25_series, RSI_series, Bollinger_H_series, Bollinger_L_series, myData, contract = get_parameters(ib,config,contract)
 #plot_indicators(SMA5_series, SMA25_series, RSI_series, myData, Bollinger_H_series, Bollinger_L_series)
 
-detect_trigger(config,ib,contract)
-print_strings("All orders filled, closing connection...")
-input("Press enter to close the connection...")

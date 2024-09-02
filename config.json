@@ -18,7 +18,7 @@
 
     "Martingale_multiplier" : 1.3,
     "Martingale_max" : 3, 
-    "Initial_size_trade" : 25000,
+    "Initial_size_trade" : 100000,
     
     "Max_drawdown" : 0.05,
     "Take_profit" : 0.02,
