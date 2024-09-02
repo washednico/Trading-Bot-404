@@ -21,10 +21,10 @@
     "Initial_size_trade" : 25000,
     
     "Max_drawdown" : 0.05,
-    "Take_profit" : 0.005,
+    "Take_profit" : 0.02,
 
     "sleep_time" : 60,
     "Monitoring_order_sleep" : 0.5,
     "monitor_forever" : "True"
-
+    
 }

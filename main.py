@@ -177,7 +177,7 @@ def initiate_strategy(contract, order_info, ib, config, myData):
     print_strings("Market order sent!")
 
     retracements = None
-    fill_processed = [False] 
+    fill_processed = [False]
     fill_price = None
 
     def on_fill(trade, fill):
@@ -242,9 +242,9 @@ def send_limit_orders(order_info, config,ib,retracements,contract,fill_price):
         average_price = total_value / cumulative_size
 
         if order_info["type"] == "BUY":
-            tp_price = average_price * (1 + config["Take_profit"] / 100)
+            tp_price = average_price * (1 + config["Take_profit"])
         else:  # Assuming you want to take profit on a short sale
-            tp_price = average_price * (1 - config["Take_profit"] / 100)
+            tp_price = average_price * (1 - config["Take_profit"])
 
         # Store size and TP price in the dictionary
         sizes_tp[i] = {'tp_size': round(cumulative_size,4), 'tp_price': round(tp_price,4)}
@@ -357,3 +357,5 @@ contract = get_contract(config)
 #plot_indicators(SMA5_series, SMA25_series, RSI_series, myData, Bollinger_H_series, Bollinger_L_series)
 
 detect_trigger(config,ib,contract)
+print_strings("All orders filled, closing connection...")
+input("Press enter to close the connection...")
