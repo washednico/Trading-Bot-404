@@ -2,6 +2,41 @@
 
 Trading bot for forex. It checks for SMA Cross, Bollinger Bands and RSI. Once one or more (as the user prefer) trigger is detected the bot will open a position short or long, depending on the trend sentiment: reverse or trending. 
 
+
+## Settings
+```json
+{
+    "pair" : "USDCHF",
+    "barSizeSetting" : "10 mins",
+    "durationStr" : "1 D",
+
+    "SMA_small_duration" : 30,
+    "SMA_big_duration" : 150,
+    "RSI_duration" : 84,
+    "bolinger_band_duration" : 120,
+    "bolinger_band_std_dev" : 2,
+    "RSI_high" : 70,
+    "RSI_low" : 30,
+
+    "Fibonacci_duration" : 20,
+    
+    "minimum_indicators_to_open" : 2,
+    "Trending" : "False",
+
+    "Martingale_multiplier" : 1.3,
+    "Martingale_max" : 3, 
+    "Initial_size_trade" : 25000,
+    
+    "Max_drawdown" : 0.05,
+    "Take_profit" : 0.005,
+
+    "sleep_time" : 60,
+    "Monitoring_order_sleep" : 0.5
+
+}
+```
+
+
 ```text
  _ _   __  _ _    ___          __ _ _     _  _     _     ___                 _ 
 | | | /  \| | |  | _ \_ _ ___ / _(_) |_  | \| |___| |_  | __|__ _  _ _ _  __| |
