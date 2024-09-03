@@ -36,12 +36,15 @@ def boot_IB():
                 available_funds[item.currency] = float(item.value)
             if item.tag == 'AvailableFunds':
                 home_currency = item.currency
+            if item.tag == "NetLiquidation":
+                net_liquidation = float(item.value)
         initial_funds = available_funds[home_currency]
         
         
         print_strings("Available funds: "+str(initial_funds)+" "+home_currency)
+        print_strings("Net Liquidation: "+str(net_liquidation)+" "+home_currency)
         
-        return myAccount, ib, home_currency, initial_funds
+        return myAccount, ib, home_currency, initial_funds, net_liquidation
     
     except:
         return None, None
@@ -95,7 +98,7 @@ def check_parameters(contract, home_currency, ib, initial_funds,config):
     if not base_currency:
         max_amount = max_amount * exchange_rate
 
-    if max_amount > initial_funds:
+    if max_amount > initial_funds*0.9:
         print_strings("PLEASE DECREASE THE MAXIMUM MARTINGALE AMOUNT, MARTINGAL MULTIPLIER OR INITIAL SIZE TRADE.")
         print_strings("IT'S SUGGESTED TO AVOID USING MORE THAN AVAILABLE FUNDS TO AVOID MARGIN CALLS")
         input("Please close the program....")
@@ -156,7 +159,7 @@ def get_fibonacci_levels(myData, fill,config):
     return retracements, fill_price
 
 
-def detect_trigger(config,ib,contract,initial_funds):
+def detect_trigger(config,ib,contract,net_liquidation):
     while True:
         SMA5_series, SMA25_series, RSI_series, Bollinger_H_series, Bollinger_L_series, myData, contract = get_parameters(ib, config,contract)
         
@@ -191,7 +194,8 @@ def detect_trigger(config,ib,contract,initial_funds):
             else:
                 order_info["type"] = "SELL"
             
-            initiate_strategy(contract, order_info, ib, config, myData, initial_funds)
+            if(initiate_strategy(contract, order_info, ib, config, myData, net_liquidation)):
+                return None
 
             if config["monitor_forever"].lower() == "false":
                 break
@@ -205,7 +209,8 @@ def detect_trigger(config,ib,contract,initial_funds):
             else:
                 order_info["type"] = "BUY"
             
-            initiate_strategy(contract, order_info, ib, config, myData,initial_funds)
+            if(initiate_strategy(contract, order_info, ib, config, myData, net_liquidation)):
+                return None
             
             if config["monitor_forever"].lower() == "false":
                 break
@@ -216,7 +221,7 @@ def detect_trigger(config,ib,contract,initial_funds):
             sleep(config["sleep_time"])
 
 
-def initiate_strategy(contract, order_info, ib, config, myData, iniital_funds):
+def initiate_strategy(contract, order_info, ib, config, myData, net_liquidation):
     print_strings("Sending market order: SIZE: "+str(config["Initial_size_trade"])+" TYPE: "+order_info["type"])
     order = MarketOrder(order_info["type"], config["Initial_size_trade"])
     trade = ib.placeOrder(contract, order)
@@ -228,7 +233,7 @@ def initiate_strategy(contract, order_info, ib, config, myData, iniital_funds):
 
     def on_fill(trade, fill):
         nonlocal retracements, fill_price
-        retracements, fill_price = get_fibonacci_levels(myData, fill, config, initial_funds)
+        retracements, fill_price = get_fibonacci_levels(myData, fill, config)
         fill_processed[0] = True  
     
     trade.fillEvent += on_fill  
@@ -238,7 +243,8 @@ def initiate_strategy(contract, order_info, ib, config, myData, iniital_funds):
 
     tp_type, tp_trade = send_tp(order_info,fill_price,ib,config,contract)
     sizes_tp, limit_trades = send_limit_orders(order_info, config,ib,retracements,contract,fill_price)
-    monitor_and_check_orders(ib, contract, order_info, config, tp_type, sizes_tp, tp_trade, limit_trades, initial_funds)
+    if(monitor_and_check_orders(ib, contract, order_info, config, tp_type, sizes_tp, tp_trade, limit_trades, net_liquidation)):
+        return True
   
 
 
@@ -297,7 +303,7 @@ def send_limit_orders(order_info, config,ib,retracements,contract,fill_price):
     
     return sizes_tp, limit_trades
 
-def monitor_and_check_orders(ib, contract, order_info, config, tp_type, sizes_tp, tp_trade,  limit_trades, initial_funds):
+def monitor_and_check_orders(ib, contract, order_info, config, tp_type, sizes_tp, tp_trade,  limit_trades, net_liquidation):
     take_profit_filled = False
     filled_limit_orders_count = 0  # Counter for filled limit orders
     canceled_orders = set()  # Track canceled orders
@@ -320,6 +326,7 @@ def monitor_and_check_orders(ib, contract, order_info, config, tp_type, sizes_tp
                             canceled_orders.add(other_trade.order.orderId)
                             print_strings(f"Order {other_trade.order.orderId} cancelled.")
                 take_profit_filled = True
+                return False
             
             elif trade in limit_trades:
 
@@ -353,9 +360,41 @@ def monitor_and_check_orders(ib, contract, order_info, config, tp_type, sizes_tp
 
     while not take_profit_filled:
         for trade in important_trades:
-            print("["+str(datetime.datetime.now())+"]\t"+"Monitoring open orders and balance...", end='\r')
-            #CHECK BALANCE AND MARGIN CALL AND DRAWDOWN
-            #if margin call or drawdown, cancel all orders and close position
+            myAccount = ib.accountSummary()
+            try:
+                for item in myAccount:
+                    if item.tag == "NetLiquidation":
+                        new_liquidation = float(item.value)
+                if new_liquidation < net_liquidation*(1-config["Max_drawdown"]):
+                    print_strings("Max drawdown reached, closing all orders...")
+                    for trade in important_trades:
+                        ib.cancelOrder(trade.order)
+                        canceled_orders.add(trade.order.orderId)
+                        print_strings(f"Order {trade.order.orderId} cancelled.")
+                    
+                    if filled_limit_orders_count == 0:
+                        config["Initial_size_trade"]
+                        new_order = MarketOrder(tp_type, config["Initial_size_trade"])
+                        new_tp = ib.placeOrder(contract, new_order)
+                        print_strings(f"Market order placed: SIZE {config["Initial_size_trade"]} TYPE {tp_type}")
+                        return True
+                    
+                    else:
+                        filled_limit_orders_count += 1
+                        tp_details = sizes_tp[filled_limit_orders_count]
+                        new_order = MarketOrder(tp_type, tp_details['tp_size'])
+                        new_tp = ib.placeOrder(contract, new_order)
+                        print_strings(f"Market order placed: SIZE {tp_details['tp_size']} TYPE {tp_type}")
+                        return True
+                
+                else:
+                    percentage_cg = round((new_liquidation - net_liquidation) / net_liquidation,4)*100 
+                    print("["+str(datetime.datetime.now())+"]\t"+"Monitoring open orders and balance ["+str(percentage_cg)+"%]", end='\r')
+            
+            except:
+                print_strings("Error getting account information")
+            
+
             ib.sleep(config["Monitoring_order_sleep"])
 
 
@@ -397,11 +436,11 @@ def plot_indicators(SMA5_series, SMA25_series, RSI_series, myData, Bollinger_H_s
 
 welcome()
 
-myAccount, ib, home_currency, initial_funds = boot_IB()
+myAccount, ib, home_currency, initial_funds, net_liquidation = boot_IB()
 config = get_config()
 contract = get_contract(config)
 if check_parameters(contract, home_currency, ib, initial_funds,config):
-    detect_trigger(config,ib,contract,initial_funds)
+    detect_trigger(config,ib,contract, net_liquidation)
     print_strings("All orders filled, closing connection...")
     input("Press enter to close the connection...")
 

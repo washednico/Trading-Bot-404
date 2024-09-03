@@ -18,13 +18,13 @@
 
     "Martingale_multiplier" : 1.3,
     "Martingale_max" : 3, 
-    "Initial_size_trade" : 100000,
+    "Initial_size_trade" : 2000,
     
-    "Max_drawdown" : 0.05,
+    "Max_drawdown" : 0.04,
     "Take_profit" : 0.02,
 
     "sleep_time" : 60,
     "Monitoring_order_sleep" : 0.5,
-    "monitor_forever" : "True"
+    "monitor_forever" : "False"
     
 }
