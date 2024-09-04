@@ -31,7 +31,7 @@ def boot_IB():
 def get_config():
     print_strings("Loading config file...")
     try:
-        with open('backtest_config.json') as f:
+        with open('config.json') as f:
             config = json.load(f)
         print_strings("Config file loaded")
 
@@ -95,11 +95,11 @@ def backtest_strategy(config, historical_data):
     # Initialize variables
     positions = []  
     trades = []
+    tp_trades = [] #List take profit orders
     initial_cash = 100000
     cash = initial_cash #TODO: fix it 
     minimum_indicators_to_open = config["minimum_indicators_to_open"]
     open_position = None
-    trending = bool(config["Trending"])
     retracements = None
     fill_price = None
     
@@ -147,7 +147,7 @@ def backtest_strategy(config, historical_data):
         
         print_strings("Fibonacci retracements calculated!")
         
-        return retracements, fill_price
+        return retracements
 
     def execute_trade(order_type, config, price, cash):
         size = config["Initial_size_trade"]
@@ -161,19 +161,37 @@ def backtest_strategy(config, historical_data):
         return cash, position
     
     def tp_order(position, config):
-        #tp_trade = []
         
         if position["type"] == "BUY": order_type == "SELL"
         else: order_type == "BUY"
-
         price_limit = round((config["Take_profit"]+1)*(position["price"]),4)
-        #print_strings("Placing take profit: SIZE: "+ str(config["Initial_size_trade"])+" TYPE: "+order_type+" PRICE: "+str(price_limit))
-        tp_position = {"type": order_type, "size": config["Initial_size_trade"], "price": price_limit, "value": price_limit*(config["Initial_size_trade"])}
-        #tp_trade.append(tp_position)
-        print_strings("Take profit placed!")
+        tp_position = {"type": order_type, "size": position['size'], "price": price_limit, "value": price_limit* position['size']}
+        print_strings(f"Placing take profit order. Type: {tp_position['type']}, Value: {tp_position['value']}")
         return tp_position
 
-    #   NOTE: The loop starts at index "SMA_big_duration", meaning it skips the first "SMA_big_duration" elements of historical_data.
+    def fibonacci_order(position, config, retracements):
+        
+        fibo_trades = []
+        for i in range(1,config["Martingale_max"]+1): 
+            if position["type"] == "BUY":
+                price_limit = retracements[i][1]
+            else: 
+                price_limit = retracements[i][0]
+            size = round(position['size']*config["Martingale_multiplier"]**i,4)
+            fibo_position =  {"type": order_type, "size": size, "price": price_limit, "value": price_limit*position['size']}
+            fibo_trades.append(fibo_position)
+            print_strings(f"Placing fibonacci order. Type: {fibo_position['type']}, Value: {fibo_position['value']}")
+
+        return fibo_trades
+    
+    def order_filled(order, current_price):
+        if order['type'] == 'BUY' and current_price <= order['price']:
+            return True
+        elif order['type'] == 'SELL' and current_price >= order['price']:
+            return True
+        return False
+
+    #TODO: add a filter to start from the biggest btw all the metrics 
     for i in range(config["SMA_big_duration"], len(historical_data)):
 
         current_data = historical_data.iloc[:i+1] # Extract data up to the current point
@@ -189,54 +207,60 @@ def backtest_strategy(config, historical_data):
 
         if open_position is None:
             if indicators_sum >= minimum_indicators_to_open:
-                order_type = "BUY" if trending else "SELL"
+                #Initial Order
+                order_type = "BUY" if config["Trending"].lower() == "true" else "SELL"
                 cash, open_position = execute_trade(order_type, config, current_data.iloc[-1]['close'], cash)
                 trades.append(open_position)
-                retracements, fill_price = get_fibonacci_levels(current_data, config, fill_price=current_data.iloc[-1]['close'])
+
+                # Order based on Fibonacci (place a series of limit orders based on the martingale strategy)
+                retracements  = get_fibonacci_levels(current_data, config, fill_price=current_data.iloc[-1]['close'])
+                fibo_trades = fibonacci_order(position=open_position, config=config, retracements=retracements)
+
+                # Take Profit
                 tp_position = tp_order(open_position, config)
+                tp_trades.append(tp_position)
+
             elif indicators_sum <= -minimum_indicators_to_open:
-                order_type = "SELL" if trending else "BUY"
+                order_type = "SELL" if config["Trending"].lower() == "true"  else "BUY"
                 cash, open_position = execute_trade(order_type, config, current_data.iloc[-1]['close'], cash)
                 trades.append(open_position)
-                retracements, fill_price = get_fibonacci_levels(current_data, config, fill_price=current_data.iloc[-1]['close'])
+
+                # Order based on Fibonacci (place a series of limit orders based on the martingale strategy)
+                retracements  = get_fibonacci_levels(current_data, config, fill_price=current_data.iloc[-1]['close'])
+                fibo_trades = fibonacci_order(open_position, config, retracements)
+
+                # Take Profit
                 tp_position = tp_order(open_position, config)
+                tp_trades.append(tp_position)
+
+        # Check existing orders
         else:
-            # Exit conditions based on Fibonacci levels
-            if (order_type == "BUY" and current_data['close'].iloc[-1] >= retracements[4][0]) or \
-               (order_type == "SELL" and current_data['close'].iloc[-1] <= retracements[4][1]):
-                # Close the position
-                opposite_order_type = "SELL" if order_type == "BUY" else "BUY"
-                cash, close_position = execute_trade(opposite_order_type, config, current_data.iloc[-1]['close'], cash)
-                close_position['profit'] = close_position['value'] - open_position['value'] if order_type == "BUY" else open_position['value'] - close_position['value']
-                close_position['exit_price'] = current_data.iloc[-1]['close']
-                trades[-1].update(close_position)
-                positions.append(trades[-1])
-                open_position = None
+            if fibo_trades:
+                for fibo_trade in fibo_trades:
+                    if order_filled(fibo_trade,  current_data.iloc[-1]['close']):  # Function to check if order is filled
+                        if fibo_trade["type"] == "BUY": 
+                            cash -= fibo_trade["value"] 
+                        else: 
+                            cash += fibo_trade["value"]
+                        fibo_trades.remove(fibo_trade)
+                        print(f"Fibonacci order filled at {current_data.iloc[-1]['close']} for {fibo_trade['type']}")
+                        open_position = None # Close position 
 
-            # Exit conditions based on take profit
-            elif (order_type == "BUY" and current_data['close'].iloc[-1] >= tp_position["price"]) or \
-                (order_type == "SELL" and current_data['close'].iloc[-1] <= tp_position["price"]):
-                # Close the position
-                opposite_order_type = "SELL" if order_type == "BUY" else "BUY"
-                cash, close_position = execute_trade(opposite_order_type, config, current_data.iloc[-1]['close'], cash)
-                close_position['profit'] = close_position['value'] - open_position['value'] if order_type == "BUY" else open_position['value'] - close_position['value']
-                close_position['exit_price'] = current_data.iloc[-1]['close']
-                trades[-1].update(close_position)
-                positions.append(trades[-1])
-                open_position = None
-                
+            if tp_trades:
+                for tp_trade in tp_trades:
+                    if order_filled(tp_trade,  current_data.iloc[-1]['close']):  
+                        if tp_trade['type'] == "BUY":
+                            cash -= tp_trade["value"] 
+                        else: 
+                            cash += tp_trade["value"]
 
-    # Calculate and print backtest resultsì
-    total_profit = sum(trade['profit'] for trade in positions)
-    ending_cash = cash + total_profit
+                        tp_trades.remove(tp_trade)
+                        print(f"Take profit order filled at {current_data.iloc[-1]['close']}")
+                        open_position = None  # Close position 
 
-    print(trades)
 
-    print_strings(f"Initial Cash: {initial_cash}")
-    print_strings(f"Ending Cash: {ending_cash}")
-    print_strings(f"Total Trades: {len(positions)}")
-    print_strings(f"Total Profit: {total_profit}")
-    print_strings(f"Profit Percentage: {(total_profit / initial_cash) * 100}%")
+    print(cash)
+    #TODO: caluclate backtest overall performances 
 
 
 # The main script execution
