@@ -53,11 +53,11 @@ def get_contract(config):
         print_strings(f"Error getting contract for {config['pair']}: {str(e)}")
         return None
     
-def get_data(config, ib, contract):
+def get_data(config, ib, contract, endTimeBacktest):
     print_strings("Retrieving data from IB for "+config["pair"]+"...")
     try:
         bars = ib.reqHistoricalData(
-            contract, endDateTime='20240815-23:59:59', durationStr=config["durationStr"],
+            contract, endDateTime= endTimeBacktest, durationStr=config["durationStr"],
             barSizeSetting=config["barSizeSetting"], whatToShow='MIDPOINT', useRTH=0
         )
         myData = util.df(bars)
@@ -92,17 +92,7 @@ def detect_bollinger(data, Bollinger_H_series, Bollinger_L_series):
     return 0
 
 def backtest_strategy(config, historical_data):
-    # Initialize variables
-    positions = []  
-    trades = []
-    tp_trades = [] #List take profit orders
-    initial_cash = 100000
-    cash = initial_cash #TODO: fix it 
-    minimum_indicators_to_open = config["minimum_indicators_to_open"]
-    open_position = None
-    retracements = None
-    fill_price = None
-    
+
     def calculate_indicators(current_data):
         """
         Calculate and return the required indicators.
@@ -114,23 +104,20 @@ def backtest_strategy(config, historical_data):
         rsi_duration = config["RSI_duration"]
         bollinger_band_duration = config["bolinger_band_duration"]
         bollinger_band_std_dev = config["bolinger_band_std_dev"]
-        try:
-            sma_small = SMAIndicator(close=current_data['close'], window=sma_small_duration).sma_indicator()
-            sma_big = SMAIndicator(close=current_data['close'], window=sma_big_duration).sma_indicator()
-            rsi = RSIIndicator(close=current_data['close'], window=rsi_duration).rsi()
-            bollinger = BollingerBands(
-                close=current_data['close'],
-                window=bollinger_band_duration,
-                window_dev=bollinger_band_std_dev
-            )
-            bollinger_h = bollinger.bollinger_hband()
-            bollinger_l = bollinger.bollinger_lband()
+    
+        sma_small = SMAIndicator(close=current_data['close'], window=sma_small_duration).sma_indicator()
+        sma_big = SMAIndicator(close=current_data['close'], window=sma_big_duration).sma_indicator()
+        rsi = RSIIndicator(close=current_data['close'], window=rsi_duration).rsi()
+        bollinger = BollingerBands(
+            close=current_data['close'],
+            window=bollinger_band_duration,
+            window_dev=bollinger_band_std_dev
+        )
+        bollinger_h = bollinger.bollinger_hband()
+        bollinger_l = bollinger.bollinger_lband()
 
-            return sma_small, sma_big, rsi, bollinger_h, bollinger_l
-        except:
-            print_strings("Error in calculating indicators...")
-            return None, None, None, None, None
-        
+        return sma_small, sma_big, rsi, bollinger_h, bollinger_l
+
     def get_fibonacci_levels(current_data, config, fill_price):
         highest_price = current_data['high'].tail(config["Fibonacci_duration"]).max()
         lowest_price = current_data['low'].tail(config["Fibonacci_duration"]).min()
@@ -149,16 +136,15 @@ def backtest_strategy(config, historical_data):
         
         return retracements
 
-    def execute_trade(order_type, config, price, cash):
+    def execute_trade(order_type, config, price):
+
+        #Execute trade
         size = config["Initial_size_trade"]
         position_value = size * price
-        if order_type == "BUY":
-            cash -= position_value
-        elif order_type == "SELL":
-            cash += position_value
         position = {"type": order_type, "size": size, "price": price, "value": position_value}
         print_strings(f"Executed {order_type} trade at price {price}")
-        return cash, position
+
+        return position
     
     def tp_order(position, config):
         
@@ -178,7 +164,7 @@ def backtest_strategy(config, historical_data):
             else: 
                 price_limit = retracements[i][0]
             size = round(position['size']*config["Martingale_multiplier"]**i,4)
-            fibo_position =  {"type": order_type, "size": size, "price": price_limit, "value": price_limit*position['size']}
+            fibo_position =  {"type": position["type"], "size": size, "price": price_limit, "value": price_limit*position['size']}
             fibo_trades.append(fibo_position)
             print_strings(f"Placing fibonacci order. Type: {fibo_position['type']}, Value: {fibo_position['value']}")
 
@@ -191,10 +177,36 @@ def backtest_strategy(config, historical_data):
             return True
         return False
 
-    #TODO: add a filter to start from the biggest btw all the metrics 
-    for i in range(config["SMA_big_duration"], len(historical_data)):
+    def cash_calculator(order, cash):
+        if order["type"] == "BUY": 
+            cash -= order["value"] 
+        else: 
+            cash += order["value"]
 
-        current_data = historical_data.iloc[:i+1] # Extract data up to the current point
+        return cash
+        
+    # Initialize variables
+    # positions = []  
+    trades = []
+    tp_trades = [] #List take profit orders
+    cash = 100000
+    minimum_indicators_to_open = config["minimum_indicators_to_open"]
+    open_position = False
+    retracements = None
+    # fill_price = None
+    
+    filter = max(config["SMA_big_duration"], 
+                 config["RSI_duration"], 
+                 config["bolinger_band_duration"], 
+                 config["bolinger_band_std_dev"],
+                 config["RSI_high"],
+                 config["RSI_low"]
+                 )
+
+    for i in range(filter, len(historical_data)):
+        
+        # Extract data up to the current point and calculate indicators
+        current_data = historical_data.iloc[:i+1]
         sma_small, sma_big, rsi, bollinger_h, bollinger_l = calculate_indicators(current_data)
 
         # Detect signal values
@@ -205,75 +217,75 @@ def backtest_strategy(config, historical_data):
         # Check for trade conditions
         indicators_sum = cross_value + rsi_value + bollinger_value
 
-        if open_position is None:
+        if not open_position:
             if indicators_sum >= minimum_indicators_to_open:
                 #Initial Order
                 order_type = "BUY" if config["Trending"].lower() == "true" else "SELL"
-                cash, open_position = execute_trade(order_type, config, current_data.iloc[-1]['close'], cash)
-                trades.append(open_position)
-
+                position = execute_trade(order_type, config, current_data.iloc[-1]['close'])
+                cash = cash_calculator(position, cash)
+                trades.append(position)
+                
                 # Order based on Fibonacci (place a series of limit orders based on the martingale strategy)
                 retracements  = get_fibonacci_levels(current_data, config, fill_price=current_data.iloc[-1]['close'])
-                fibo_trades = fibonacci_order(position=open_position, config=config, retracements=retracements)
-
+                fibo_trades = fibonacci_order(position, config, retracements)
+            
                 # Take Profit
-                tp_position = tp_order(open_position, config)
+                tp_position = tp_order(position, config)
                 tp_trades.append(tp_position)
+
+                #Set position True
+                open_position = True
 
             elif indicators_sum <= -minimum_indicators_to_open:
                 order_type = "SELL" if config["Trending"].lower() == "true"  else "BUY"
-                cash, open_position = execute_trade(order_type, config, current_data.iloc[-1]['close'], cash)
-                trades.append(open_position)
+                position = execute_trade(order_type, config, current_data.iloc[-1]['close'])
+                cash = cash_calculator(position, cash)
+                trades.append(position)
 
                 # Order based on Fibonacci (place a series of limit orders based on the martingale strategy)
                 retracements  = get_fibonacci_levels(current_data, config, fill_price=current_data.iloc[-1]['close'])
-                fibo_trades = fibonacci_order(open_position, config, retracements)
+                fibo_trades = fibonacci_order(position, config, retracements)
 
                 # Take Profit
-                tp_position = tp_order(open_position, config)
+                tp_position = tp_order(position, config)
                 tp_trades.append(tp_position)
 
+                #Set position True
+                open_position = True
+
+
         # Check existing orders
-        else:
+        if open_position:
             if fibo_trades:
                 for fibo_trade in fibo_trades:
                     if order_filled(fibo_trade,  current_data.iloc[-1]['close']):  # Function to check if order is filled
-                        if fibo_trade["type"] == "BUY": 
-                            cash -= fibo_trade["value"] 
-                        else: 
-                            cash += fibo_trade["value"]
+                        cash = cash_calculator(fibo_trade, cash)
                         fibo_trades.remove(fibo_trade)
-                        print(f"Fibonacci order filled at {current_data.iloc[-1]['close']} for {fibo_trade['type']}")
-                        open_position = None # Close position 
+                        print_strings(f"Fibonacci order filled at {current_data.iloc[-1]['close']} for {fibo_trade['type']}")
+                        open_position = False # Close position 
 
             if tp_trades:
                 for tp_trade in tp_trades:
                     if order_filled(tp_trade,  current_data.iloc[-1]['close']):  
-                        if tp_trade['type'] == "BUY":
-                            cash -= tp_trade["value"] 
-                        else: 
-                            cash += tp_trade["value"]
-
+                        cash = cash_calculator(tp_trade, cash)
                         tp_trades.remove(tp_trade)
-                        print(f"Take profit order filled at {current_data.iloc[-1]['close']}")
-                        open_position = None  # Close position 
+                        print_strings(f"Take profit order filled at {current_data.iloc[-1]['close']}")
+                        open_position = False  # Close position 
 
 
-    print(cash)
     #TODO: caluclate backtest overall performances 
+    print(cash)
 
 
 # The main script execution
 welcome()
 myAccount, ib = boot_IB()
-#.....
-
-#NOTE: Debugging form
 if ib is not None:
     config = get_config()
     if config is not None:
         contract = get_contract(config)
         if contract is not None:
-            historical_data = get_data(config, ib, contract)
-            print_strings(f"{historical_data}")
+            endTimeBacktest = "20240815-23:59:59" #NOTE: endDateTime format must be "YYYYMMDD-HH:MM:SS"
+            historical_data = get_data(config, ib, contract, endTimeBacktest)
+            # print_strings(f"{historical_data}")
             backtest_strategy(config, historical_data)
