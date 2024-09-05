@@ -285,7 +285,10 @@ def backtest_strategy(config, historical_data):
 
                 # Take Profit
                 tp_position = tp_order(position, config)
-                tp_trades.append(tp_position)
+
+
+                limit_orders["fibo_orders"] = fibo_trades
+                limit_orders["tp_orders"] = tp_position
 
         #Start check if condition is met
         if len(limit_orders) != 0: 
