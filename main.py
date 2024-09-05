@@ -20,7 +20,7 @@ def print_strings(string):
     print("["+str(datetime.datetime.now())+"]\t"+string)
 
 def boot_IB():
-    # This function attempts to connect to the Interactive Brokers (IB) Gateway
+    # Function attempts to connect to the Interactive Brokers (IB) Gateway
     # and retrieve the account summary information.
     try:
         print_strings("IB Gateway connecting...")
@@ -60,7 +60,7 @@ def boot_IB():
 
         
 def get_config():
-    # This function loads the configuration settings from a 'config.json' file.
+    # Function loads the configuration settings from a 'config.json' file.
     print_strings("Loading config file...")
     try:
         with open('config.json') as f:
@@ -76,7 +76,7 @@ def get_config():
         return None
     
 def get_contract(config):
-    # This function retrieves the Forex contract based on the trading pair specified in the config
+    # Function retrieves the Forex contract based on the trading pair specified in the config
     try:
         print_strings("Getting contract for "+config["pair"]+"...")
         contract = Forex(config["pair"])
@@ -89,7 +89,7 @@ def get_contract(config):
 
 def check_parameters(contract, home_currency, ib, initial_funds,config):
 
-    # This function checks whether the selected currency pair is appropriate given the home currency,
+    # Function checks whether the selected currency pair is appropriate given the home currency,
     # and whether the maximum potential trades size exceeds the available funds.
 
     # Check if the home currency is part of the currency pair
@@ -130,7 +130,7 @@ def check_parameters(contract, home_currency, ib, initial_funds,config):
 
 
 def get_parameters(ib,config,contract):
-    # This function retrieves historical market data and calculates several technical indicators
+    # Function retrieves historical market data and calculates several technical indicators
     # based on the provided configuration.
 
     print_strings("Getting historical data for "+config["pair"]+"...")
