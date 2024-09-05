@@ -227,12 +227,11 @@ def backtest_strategy(config, historical_data):
         
 
     # Initialize variables
-    trades = []
-    tp_trades = [] #List take profit orders
+    
     cash = 100000
     minimum_indicators_to_open = config["minimum_indicators_to_open"]
-    open_position = False
-    retracements = None
+    
+    
     
     filter = max(config["SMA_big_duration"], 
                  config["RSI_duration"], 
