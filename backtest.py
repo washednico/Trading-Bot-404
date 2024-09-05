@@ -255,12 +255,12 @@ def backtest_strategy(config, historical_data):
             if indicators_sum >= minimum_indicators_to_open:
                 #Initial Order
                 order_type = "BUY" if config["Trending"].lower() == "true" else "SELL"
-                position = execute_trade(order_type, config, current_data[-1]['close'])
+                position = execute_trade(order_type, config, current_data['close'])
                 key = len(filled_orders)
                 filled_orders[key] = position
 
                 # Order based on Fibonacci (place a series of limit orders based on the martingale strategy)
-                retracements  = get_fibonacci_levels(current_data, config, fill_price=current_data[-1]['close'])
+                retracements  = get_fibonacci_levels(current_data, config, fill_price=current_data['close'])
                 sizes_tp, fibo_trades = fibonacci_order(position, config, retracements)
 
                 # Take Profit
@@ -272,12 +272,12 @@ def backtest_strategy(config, historical_data):
             elif indicators_sum <= -minimum_indicators_to_open:
 
                 order_type = "SELL" if config["Trending"].lower() == "true"  else "BUY"
-                position = execute_trade(order_type, config, current_data[-1]['close'])
+                position = execute_trade(order_type, config, current_data['close'])
                 key = len(filled_orders)
                 filled_orders[key] = position
 
                 # Order based on Fibonacci (place a series of limit orders based on the martingale strategy)
-                retracements  = get_fibonacci_levels(current_data, config, fill_price=current_data[-1]['close'])
+                retracements  = get_fibonacci_levels(current_data, config, fill_price=current_data['close'])
                 sizes_tp, fibo_trades = fibonacci_order(position, config, retracements)
 
                 # Take Profit
@@ -293,7 +293,7 @@ def backtest_strategy(config, historical_data):
             for fibo_trades in limit_orders["fibo_orders"]:   
                 #filled condition fibo
                 if fibo_trades["type"] == "BUY":
-                    if fibo_trades["price"] >= current_data[i]["close"]: 
+                    if fibo_trades["price"] >= current_data["close"]: 
                         print_strings(f"Fibo orders filled")
                         print_index(i, "FIBO ORDER FILLED")
 
@@ -303,7 +303,7 @@ def backtest_strategy(config, historical_data):
                         
 
                 if fibo_trades["type"] == "SELL":
-                    if fibo_trades["price"] <= current_data[i]["close"]: 
+                    if fibo_trades["price"] <= current_data["close"]: 
                         print_strings(f"Fibo orders filled")
                         print_index(i, "FIBO ORDER FILLED")
                         
@@ -314,7 +314,7 @@ def backtest_strategy(config, historical_data):
 
             #filled condition 
             if limit_orders["tp_orders"]["type"] == "BUY":
-                if limit_orders["tp_orders"]["price"] >= current_data[i]["close"]:
+                if limit_orders["tp_orders"]["price"] >= current_data["close"]:
                     print_strings(f"TP orders filled")
                     print_index(i, "TP ORDER FILLED")
             
@@ -322,7 +322,7 @@ def backtest_strategy(config, historical_data):
                     limit_orders = {}
             
             else: 
-                if limit_orders["tp_orders"]["price"] <= current_data[i]["close"]: 
+                if limit_orders["tp_orders"]["price"] <= current_data["close"]: 
                     print_strings(f"TP orders filled")
                     print_index(i, "TP ORDER FILLED")
 
