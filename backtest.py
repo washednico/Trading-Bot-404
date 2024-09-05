@@ -16,6 +16,9 @@ def welcome():
 def print_strings(string):
     print("["+str(datetime.datetime.now())+"]\t"+string)
 
+def print_index(index, string):
+    print(f"[ {index}]\t"+string)
+
 def boot_IB():
     try:
         print_strings("IB Gateway connecting...")
@@ -175,7 +178,7 @@ def backtest_strategy(config, historical_data):
         for i in range(1,config["Martingale_max"]+1): 
             if position["type"] == "BUY":
                 price_limit = retracements[i][1]
-            else: 
+            if position["type"] == "SELL": 
                 price_limit = retracements[i][0]
             size = round(position['size']*config["Martingale_multiplier"]**i,4)
             fibo_position =  {"type": position["type"], "size": size, "price": price_limit, "value": price_limit*position['size'],  "order_type":"fibo_order"}
@@ -244,36 +247,39 @@ def backtest_strategy(config, historical_data):
         
         # Extract data up to the current point and calculate indicators
         current_data = historical_data.iloc[:i+1]
-        sma_small, sma_big, rsi, bollinger_h, bollinger_l = calculate_indicators(current_data)
 
-        # Detect signal values
-        cross_value = detect_cross(sma_small, sma_big)
-        rsi_value = detect_RSI(rsi, config)
-        bollinger_value = detect_bollinger(current_data, bollinger_h, bollinger_l)
+        if len(limit_orders) == 0:
+            sma_small, sma_big, rsi, bollinger_h, bollinger_l = calculate_indicators(current_data)
 
-        # Check for trade conditions
-        indicators_sum = cross_value + rsi_value + bollinger_value
+            # Detect signal values
+            cross_value = detect_cross(sma_small, sma_big)
+            rsi_value = detect_RSI(rsi, config)
+            bollinger_value = detect_bollinger(current_data, bollinger_h, bollinger_l)
+
+            # Check for trade conditions
+            indicators_sum = cross_value + rsi_value + bollinger_value
 
 
-        if indicators_sum >= minimum_indicators_to_open:
-            #Initial Order
-            order_type = "BUY" if config["Trending"].lower() == "true" else "SELL"
-            position = execute_trade(order_type, config, current_data.iloc[-1]['close'])
-            #cash = cash_calculator(position, cash)
-            key = len(filled_orders)
-            filled_orders[key] = position
+            if indicators_sum >= minimum_indicators_to_open:
+                #Initial Order
+                order_type = "BUY" if config["Trending"].lower() == "true" else "SELL"
+                position = execute_trade(order_type, config, current_data.iloc[-1]['close'])
+                #cash = cash_calculator(position, cash)
+                key = len(filled_orders)
+                filled_orders[key] = position
 
-            # Order based on Fibonacci (place a series of limit orders based on the martingale strategy)
-            retracements  = get_fibonacci_levels(current_data, config, fill_price=current_data.iloc[-1]['close'])
-            sizes_tp, fibo_trades = fibonacci_order(position, config, retracements)
+                # Order based on Fibonacci (place a series of limit orders based on the martingale strategy)
+                retracements  = get_fibonacci_levels(current_data, config, fill_price=current_data.iloc[-1]['close'])
+                sizes_tp, fibo_trades = fibonacci_order(position, config, retracements)
 
-            # Take Profit
-            tp_position = tp_order(position, config)
-            
-            limit_orders["fibo_orders"] = fibo_trades
-            limit_orders["tp_orders"] = tp_position
+                # Take Profit
+                tp_position = tp_order(position, config)
+                
+                limit_orders["fibo_orders"] = fibo_trades
+                limit_orders["tp_orders"] = tp_position
 
-        elif indicators_sum <= -minimum_indicators_to_open:
+            elif indicators_sum <= -minimum_indicators_to_open:
+                
                 order_type = "SELL" if config["Trending"].lower() == "true"  else "BUY"
                 position = execute_trade(order_type, config, current_data.iloc[-1]['close'])
                 cash = cash_calculator(position, cash)
@@ -291,35 +297,35 @@ def backtest_strategy(config, historical_data):
                 limit_orders["tp_orders"] = tp_position
 
 
-
+        else: 
         #Start check if condition is met
-        if len(limit_orders) != 0: 
-            for fibo_trades in limit_orders["fibo_orders"]:
-                for z in fibo_trades:
+            for fibo_trades in limit_orders["fibo_orders"]:   
+                #filled condition fibo
+                if fibo_trades["type"] == "BUY":
+                    if fibo_trades["price"] >= current_data.iloc[i]["close"]: 
+                        print_strings(f"Fibo orders filled")
+                        print_index(i, "FIBO ORDER FILLED")
 
-                    #filled condition fibo
-                    if z["type"] == "BUY":
-                        if z["price"] <= current_data.iloc[i]["close"]: 
-                            print_strings(f"Fibo orders filled")
+                        limit_orders["tp_orders"] = 0 
+                        limit_orders["tp_orders"] = list(sizes_tp.items())[0][1]
+                        print_strings(f"Take profit the following fibo order is executed ")
+                        
 
-                            limit_orders["tp_orders"] = 0 
-                            limit_orders["tp_orders"] = list(sizes_tp.items())[0][1]
-                            print_strings(f"Take profit the following fibo order is executed ")
-                            
-
-                    else:
-                        if z["price"] >= current_data.iloc[i]["close"]: 
-                            print_strings(f"Fibo orders filled")
-                            
-                            limit_orders["tp_orders"] = 0 
-                            limit_orders["tp_orders"] = list(sizes_tp.items())[0][1]
-                            print_strings(f"Take profit the following fibo order is executed ")
+                if fibo_trades["type"] == "SELL":
+                    if fibo_trades["price"] <= current_data.iloc[i]["close"]: 
+                        print_strings(f"Fibo orders filled")
+                        print_index(i, "FIBO ORDER FILLED")
+                        
+                        limit_orders["tp_orders"] = 0 
+                        limit_orders["tp_orders"] = list(sizes_tp.items())[0][1]
+                        print_strings(f"Take profit the following fibo order is executed ")
                         
 
             #filled condition 
             if limit_orders["tp_orders"]["type"] == "BUY":
                 if limit_orders["tp_orders"]["price"] >= current_data.iloc[i]["close"]:
                     print_strings(f"TP orders filled")
+                    print_index(i, "TP ORDER FILLED")
             
                     #Reset the dict 
                     limit_orders = {}
@@ -327,6 +333,7 @@ def backtest_strategy(config, historical_data):
             else: 
                 if limit_orders["tp_orders"]["price"] <= current_data.iloc[i]["close"]: 
                     print_strings(f"TP orders filled")
+                    print_index(i, "TP ORDER FILLED")
 
                     #Reset the dict 
                     limit_orders = {}
