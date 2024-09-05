@@ -294,26 +294,26 @@ def backtest_strategy(config, historical_data):
 
         #Start check if condition is met
         if len(limit_orders) != 0: 
-            for order in limit_orders["fibo_orders"]:
+            for fibo_trades in limit_orders["fibo_orders"]:
+                for z in fibo_trades:
 
-                #filled condition fibo
-                if order["type"] == "BUY":
-                    if order["price"] <= current_data.iloc[i]["close"]: 
-                        print_strings(f"Fibo orders filled")
+                    #filled condition fibo
+                    if z["type"] == "BUY":
+                        if z["price"] <= current_data.iloc[i]["close"]: 
+                            print_strings(f"Fibo orders filled")
 
-                        limit_orders["tp_orders"] = 0 
+                            limit_orders["tp_orders"] = 0 
+                            limit_orders["tp_orders"] = list(sizes_tp.items())[0][1]
+                            print_strings(f"Take profit the following fibo order is executed ")
+                            
 
-                        print("\n \n\ \n", list(sizes_tp.items())[0]["tp_price"])
-                        limit_orders["tp_orders"] = list(sizes_tp.items())[0][1]
-                        print_strings(f"Take profit the following fibo order is executed ")
-                        
-
-                else:
-                    if order["price"] >= current_data.iloc[i]["close"]: 
-                        print_strings(f"Fibo orders filled")
-                        
-                        limit_orders["tp_orders"] = list(sizes_tp.items())[0][1]
-                        print_strings(f"Take profit the following fibo order is executed ")
+                    else:
+                        if z["price"] >= current_data.iloc[i]["close"]: 
+                            print_strings(f"Fibo orders filled")
+                            
+                            limit_orders["tp_orders"] = 0 
+                            limit_orders["tp_orders"] = list(sizes_tp.items())[0][1]
+                            print_strings(f"Take profit the following fibo order is executed ")
                         
 
             #filled condition 
