@@ -56,11 +56,11 @@ def get_contract(config):
         print_strings(f"Error getting contract for {config['pair']}: {str(e)}")
         return None
     
-def get_data(config, ib, contract, endTimeBacktest):
+def get_data(config, ib, contract):
     print_strings("Retrieving data from IB for "+config["pair"]+"...")
     try:
         bars = ib.reqHistoricalData(
-            contract, endDateTime= endTimeBacktest, durationStr=config["durationStr"],
+            contract, endDateTime= '', durationStr=config["durationStr"],
             barSizeSetting=config["barSizeSetting"], whatToShow='MIDPOINT', useRTH=0
         )
         myData = util.df(bars)
@@ -387,8 +387,6 @@ if ib is not None:
     if config is not None:
         contract = get_contract(config)
         if contract is not None:
-
-            endTimeBacktest = "20240831-23:59:59" #NOTE: endDateTime format must be "YYYYMMDD-HH:MM:SS"
-            historical_data = get_data(config, ib, contract, endTimeBacktest)
+            historical_data = get_data(config, ib, contract)
             # print_strings(f"{historical_data}")
             backtest_strategy(config, historical_data)
