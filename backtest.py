@@ -181,9 +181,9 @@ def backtest_strategy(config, historical_data):
             if position["type"] == "SELL": 
                 price_limit = retracements[i][0]
             size = round(position['size']*config["Martingale_multiplier"]**i,4)
-            fibo_position =  {"type": position["type"], "size": size, "price": price_limit, "value": price_limit*position['size'],  "order_type":"fibo_order"}
+            fibo_position =  {"type": position["type"], "size": size, "price": price_limit, "value": price_limit*size,  "order_type":"fibo_order"}
             fibo_trades.append(fibo_position)
-            print_strings(f"Placing fibonacci order. Type: {fibo_position['type']}, Value: {fibo_position['value']}")
+            print_strings(f"Placing fibonacci order. Type: {fibo_position['type']}, Price: {price_limit}")
 
             # Update cumulative size and total value after placing the new limit order
             cumulative_size += size
@@ -202,10 +202,6 @@ def backtest_strategy(config, historical_data):
                 tp_price = average_price * (1 - config["Take_profit"])
                 tp_type = "BUY"
                 sizes_tp[i] = {'size': round(cumulative_size,4), 'price': round(tp_price,4), 'type': tp_type}
-
-           
-
-
         
         # Return the dictionary of sizes and take-profit prices, and the list of limit trades
         return sizes_tp, fibo_trades
@@ -216,7 +212,6 @@ def backtest_strategy(config, historical_data):
         elif order['type'] == 'SELL' and current_price >= order['price']:
             return True
         return False
-
 
     def cash_calculator(order, cash):
         if order["type"] == "BUY": 
@@ -274,12 +269,12 @@ def backtest_strategy(config, historical_data):
 
                 # Take Profit
                 tp_position = tp_order(position, config)
-                
+
                 limit_orders["fibo_orders"] = fibo_trades
                 limit_orders["tp_orders"] = tp_position
 
             elif indicators_sum <= -minimum_indicators_to_open:
-                
+
                 order_type = "SELL" if config["Trending"].lower() == "true"  else "BUY"
                 position = execute_trade(order_type, config, current_data.iloc[-1]['close'])
                 cash = cash_calculator(position, cash)
@@ -287,7 +282,7 @@ def backtest_strategy(config, historical_data):
 
                 # Order based on Fibonacci (place a series of limit orders based on the martingale strategy)
                 retracements  = get_fibonacci_levels(current_data, config, fill_price=current_data.iloc[-1]['close'])
-                fibo_trades = fibonacci_order(position, config, retracements)
+                sizes_tp, fibo_trades = fibonacci_order(position, config, retracements)
 
                 # Take Profit
                 tp_position = tp_order(position, config)
