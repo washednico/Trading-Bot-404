@@ -281,8 +281,9 @@ def backtest_strategy(config, historical_data):
 
                 order_type = "SELL" if config["Trending"].lower() == "true"  else "BUY"
                 position = execute_trade(order_type, config, current_data.iloc[-1]['close'])
-                cash = cash_calculator(position, cash)
-                trades.append(position)
+                
+                key = len(filled_orders)
+                filled_orders[key] = position
 
                 # Order based on Fibonacci (place a series of limit orders based on the martingale strategy)
                 retracements  = get_fibonacci_levels(current_data, config, fill_price=current_data.iloc[-1]['close'])
@@ -311,6 +312,7 @@ def backtest_strategy(config, historical_data):
                         limit_orders["tp_orders"] = 0 
                         limit_orders["tp_orders"] = list(sizes_tp.items())[0][1]
                         print_strings(f"Take profit the following fibo order is executed ")
+                        limit_orders["fibo_orders"].remove(fibo_trades)
                         
 
                 if fibo_trades["type"] == "SELL":
@@ -323,6 +325,7 @@ def backtest_strategy(config, historical_data):
                         limit_orders["tp_orders"] = 0 
                         limit_orders["tp_orders"] = list(sizes_tp.items())[0][1]
                         print_strings(f"Take profit the following fibo order is executed ")
+                        limit_orders["fibo_orders"].remove(fibo_trades)
                         
 
             #filled condition 
