@@ -304,7 +304,7 @@ def backtest_strategy(config, historical_data):
                         limit_orders["tp_orders"] = 0 
 
                         print("\n \n\ \n", list(sizes_tp.items())[0]["tp_price"])
-                        limit_orders["tp_orders"] = list(sizes_tp.items())[0][1]["price"]
+                        limit_orders["tp_orders"] = list(sizes_tp.items())[0][1]
                         print_strings(f"Take profit the following fibo order is executed ")
                         
 
@@ -312,17 +312,15 @@ def backtest_strategy(config, historical_data):
                     if order["price"] >= current_data.iloc[i]["close"]: 
                         print_strings(f"Fibo orders filled")
                         
-
-                        test = list(sizes_tp.items())[0]
-                        limit_orders["tp_orders"] = list(sizes_tp.items())[0][1]["price"]
+                        limit_orders["tp_orders"] = list(sizes_tp.items())[0][1]
                         print_strings(f"Take profit the following fibo order is executed ")
                         
 
             #filled condition 
-
             if limit_orders["tp_orders"]["type"] == "BUY":
                 if limit_orders["tp_orders"]["price"] >= current_data.iloc[i]["close"]:
                     print_strings(f"TP orders filled")
+            
                     #Reset the dict 
                     limit_orders = {}
             
