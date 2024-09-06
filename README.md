@@ -125,6 +125,12 @@ Press enter to continue...
 [2024-09-02 19:43:50.980604]    Take profit filled! Cancelling all other orders.
 [2024-09-02 19:43:50.983041]    Order 8 cancelled.
 [2024-09-02 19:43:50.984128]    Order 9 cancelled.
+```
+
+
+
+## Backtest Plot Example
+![alt text](https://github.com/washednico/trading_project/blob/main/img/backtest_plot.png?raw=true)
 
 
 ```
