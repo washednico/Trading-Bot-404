@@ -3,7 +3,7 @@ from ta.momentum import RSIIndicator
 from ta.trend import SMAIndicator
 from ta.volatility import BollingerBands
 from pyfiglet import Figlet
-import matplotlib.pyplot as plt
+import plotly.graph_objects as go
 import datetime
 import json
 
@@ -367,9 +367,9 @@ def backtest_strategy(config, historical_data):
                     limit_orders = {}
 
             # Check if SELL tp_orders are filled (specular to the previous one).
-            if limit_orders["tp_orders"]["type"] == "SELL": 
+            else:
                 if limit_orders["tp_orders"]["price"] <= current_data.iloc[i]["close"]: 
-                    print_strings(f"TP orders filled {str(limit_orders["tp_orders"]["price"])}")
+                    print_strings(f"TP orders filled {str(limit_orders['tp_orders']['price'])}")
                     # print_index(i, "TP ORDER FILLED")
                     # print(current_data.iloc[-1]['close'])
                     # print(fibo_trades["price"])
@@ -396,13 +396,125 @@ if ib is not None:
             historical_data, trade_history = backtest_strategy(config, historical_data) # Get historical data and list of trades for plotting purposes. 
             
             # Plot the results. 
-            plt.plot(historical_data['close'], label='Price')  # Plot the historical price series.
-            for trade in trade_history:  # Iterate over list of trades and plot each trade as a point
-                if trade['position'] == 'open':
-                    plt.scatter(trade['step'], trade['price'], color='green', marker='^', label='Buy' if trade['type'] == 'BUY' else 'Sell')
-                elif trade['position'] == 'close':
-                    plt.scatter(trade['step'], trade['price'], color='red', marker='v', label='Close')
+            
+            # Initialize lists to store steps and prices for each trade type
+            mkt_buy_steps = []
+            mkt_buy_prices = []
+            mkt_sell_steps = []
+            mkt_sell_prices = []
+            tp_buy_steps = []
+            tp_buy_prices = []
+            tp_sell_steps = []
+            tp_sell_prices = []
+            fibo_buy_steps = []
+            fibo_buy_prices = []
+            fibo_sell_steps = []
+            fibo_sell_prices = []
 
-            plt.legend()
-            plt.title('Price Series with Buy/Sell Points')
-            plt.show()
+            # Collect all trades into respective lists
+            for trade in trade_history:
+                if trade['position'] == 'MKT_BUY':
+                    mkt_buy_steps.append(trade['step'])
+                    mkt_buy_prices.append(trade['price'])
+                elif trade['position'] == 'MKT_SELL':
+                    mkt_sell_steps.append(trade['step'])
+                    mkt_sell_prices.append(trade['price'])
+                elif trade['position'] == 'TP_BUY':
+                    tp_buy_steps.append(trade['step'])
+                    tp_buy_prices.append(trade['price'])
+                elif trade['position'] == 'TP_SELL':
+                    tp_sell_steps.append(trade['step'])
+                    tp_sell_prices.append(trade['price'])
+                elif trade['position'] == 'FIBO_BUY':
+                    fibo_buy_steps.append(trade['step'])
+                    fibo_buy_prices.append(trade['price'])
+                elif trade['position'] == 'FIBO_SELL':
+                    fibo_sell_steps.append(trade['step'])
+                    fibo_sell_prices.append(trade['price'])
+
+            # Create the figure
+            fig = go.Figure()
+
+            # Add the price line (the historical price series)
+            fig.add_trace(go.Scatter(
+                y=historical_data['close'], 
+                mode='lines', 
+                name='Price',
+                line=dict(color='blue', width=2),
+                hoverinfo='y'
+            ))
+
+            # Add all trades in single traces for each type
+            if mkt_buy_steps:
+                fig.add_trace(go.Scatter(
+                    x=mkt_buy_steps, 
+                    y=mkt_buy_prices, 
+                    mode='markers', 
+                    marker=dict(color='lime', symbol='triangle-up', size=12, line=dict(width=2, color='black')), 
+                    name='MKT_BUY', 
+                    hoverinfo='x+y'
+                ))
+
+            if mkt_sell_steps:
+                fig.add_trace(go.Scatter(
+                    x=mkt_sell_steps, 
+                    y=mkt_sell_prices, 
+                    mode='markers', 
+                    marker=dict(color='firebrick', symbol='triangle-down', size=12, line=dict(width=2, color='black')), 
+                    name='MKT_SELL', 
+                    hoverinfo='x+y'
+                ))
+
+            if tp_buy_steps:
+                fig.add_trace(go.Scatter(
+                    x=tp_buy_steps, 
+                    y=tp_buy_prices, 
+                    mode='markers', 
+                    marker=dict(color='orange', symbol='circle', size=10, line=dict(width=2, color='black')), 
+                    name='TP_BUY', 
+                    hoverinfo='x+y'
+                ))
+
+            if tp_sell_steps:
+                fig.add_trace(go.Scatter(
+                    x=tp_sell_steps, 
+                    y=tp_sell_prices, 
+                    mode='markers', 
+                    marker=dict(color='darkorange', symbol='x', size=10, line=dict(width=2, color='black')), 
+                    name='TP_SELL', 
+                    hoverinfo='x+y'
+                ))
+
+            if fibo_buy_steps:
+                fig.add_trace(go.Scatter(
+                    x=fibo_buy_steps, 
+                    y=fibo_buy_prices, 
+                    mode='markers', 
+                    marker=dict(color='deepskyblue', symbol='diamond', size=12, line=dict(width=2, color='black')), 
+                    name='FIBO_BUY', 
+                    hoverinfo='x+y'
+                ))
+
+            if fibo_sell_steps:
+                fig.add_trace(go.Scatter(
+                    x=fibo_sell_steps, 
+                    y=fibo_sell_prices, 
+                    mode='markers', 
+                    marker=dict(color='darkred', symbol='diamond', size=12, line=dict(width=2, color='black')), 
+                    name='FIBO_SELL', 
+                    hoverinfo='x+y'
+                ))
+
+            # Update layout with better titles, axis labels, and improved legend
+            fig.update_layout(
+                title='Price Series with Buy/Sell Points',
+                xaxis_title='Time (Steps)',
+                yaxis_title='Price',
+                legend_title='Trade Type',
+                template='plotly_white',
+                hovermode='x unified',
+                margin=dict(l=40, r=40, t=40, b=40),
+            )
+
+            # Show the plot
+            fig.show()
