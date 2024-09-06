@@ -131,6 +131,4 @@ Press enter to continue...
 
 ## Backtest Plot Example
 ![alt text](https://github.com/washednico/trading_project/blob/main/img/backtest_plot.png?raw=true)
-
-
 ```
