@@ -1,1 +1,4 @@
-
+ib_insync >= 0.9.86
+ta >= 0.11.0
+pyfiglet >= 1.0.2
+ployly >=  5.18.0
