@@ -1,7 +1,7 @@
 {
     "pair" : "USDCHF",
     "barSizeSetting" : "10 mins",
-    "durationStr" : "1 y",
+    "durationStr" : "3 m",
 
     "SMA_small_duration" : 30,
     "SMA_big_duration" : 150,

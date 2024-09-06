@@ -169,7 +169,7 @@ def backtest_strategy(config, historical_data):
         else:
             price_limit = round((config["Take_profit"]+1)*position["price"],4)
         tp_position = {"type": type_order, "size": position['size'], "price": price_limit, "value": price_limit* position['size'],  "order_type":"tp_order"}
-        print_strings(f"Placing take profit order. Type: {tp_position['type']}, Value: {tp_position['value']}")
+        print_strings(f"Placing take profit order. Type: {tp_position['type']}, Size: {tp_position['size']}")
         return tp_position
 
     def fibonacci_order(position, config, retracements):
@@ -240,8 +240,9 @@ def backtest_strategy(config, historical_data):
                  config["RSI_high"],
                  config["RSI_low"]
                  )
-
+    trade_history = []
     for i in range(filter, len(historical_data)):
+        
         
         # Extract data up to the current point and calculate indicators
         current_data = historical_data.iloc[:i+1]
@@ -310,8 +311,12 @@ def backtest_strategy(config, historical_data):
 
                         limit_orders["tp_orders"] = 0 
                         limit_orders["tp_orders"] = list(sizes_tp.items())[0][1]
+                        first_key = next(iter(sizes_tp))
+                        sizes_tp.pop(first_key)
                         print_strings(f"Take profit the following fibo order is executed ")
+                        print(limit_orders["tp_orders"])
                         limit_orders["fibo_orders"].remove(fibo_trades)
+                        trade_history.append({"position": "close", "type": "BUY", "price": current_data.iloc[-1]['close'], "step": i})
                         
 
                 if fibo_trades["type"] == "SELL":
@@ -323,33 +328,42 @@ def backtest_strategy(config, historical_data):
                         
                         limit_orders["tp_orders"] = 0 
                         limit_orders["tp_orders"] = list(sizes_tp.items())[0][1]
+
+                        first_key = next(iter(sizes_tp))
+                        sizes_tp.pop(first_key)
+
+                        
+                        print(limit_orders["tp_orders"])
                         print_strings(f"Take profit the following fibo order is executed ")
                         limit_orders["fibo_orders"].remove(fibo_trades)
+                        trade_history.append({"position": "close", "type": "SELL", "price": current_data.iloc[-1]['close'], "step": i})
                         
 
             #filled condition 
             if limit_orders["tp_orders"]["type"] == "BUY":
                 if limit_orders["tp_orders"]["price"] >= current_data.iloc[i]["close"]:
-                    print_strings(f"TP orders filled")
+                    print_strings(f"TP orders filled {str(limit_orders["tp_orders"]["price"])}")
                     print_index(i, "TP ORDER FILLED")
                     print(current_data.iloc[-1]['close'])
                     print(limit_orders["tp_orders"]["price"])
-            
+                    trade_history.append({"position": "close", "type": "BUY", "price": current_data.iloc[-1]['close'], "step": i})
                     #Reset the dict 
                     limit_orders = {}
             
             else: 
                 if limit_orders["tp_orders"]["price"] <= current_data.iloc[i]["close"]: 
-                    print_strings(f"TP orders filled")
+                    print_strings(f"TP orders filled {str(limit_orders["tp_orders"]["price"])}")
                     print_index(i, "TP ORDER FILLED")
                     print(current_data.iloc[-1]['close'])
                     print(fibo_trades["price"])
-
+                    trade_history.append({"position": "close", "type": "BUY", "price": current_data.iloc[-1]['close'], "step": i})
                     #Reset the dict 
                     limit_orders = {}
+    
+    return historical_data, trade_history
 
 
-            
+    
 
 
         # # Check existing orders
@@ -389,4 +403,20 @@ if ib is not None:
         if contract is not None:
             historical_data = get_data(config, ib, contract)
             # print_strings(f"{historical_data}")
-            backtest_strategy(config, historical_data)
+            historical_data, trade_history = backtest_strategy(config, historical_data)
+
+import matplotlib.pyplot as plt
+
+# Plot the historical price series
+plt.plot(historical_data['close'], label='Price')
+
+# Plot trade points
+for trade in trade_history:
+    if trade['position'] == 'open':
+        plt.scatter(trade['step'], trade['price'], color='green', marker='^', label='Buy' if trade['type'] == 'BUY' else 'Sell')
+    elif trade['position'] == 'close':
+        plt.scatter(trade['step'], trade['price'], color='red', marker='v', label='Close')
+
+plt.legend()
+plt.title('Price Series with Buy/Sell Points')
+plt.show()
