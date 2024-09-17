@@ -1,4 +1,4 @@
-# trading_project
+# 404 Profit Not Found
 
 Trading bot for forex. It checks for SMA Cross, Bollinger Bands and RSI. Once one or more (as the user prefer) trigger is detected the bot will open a position short or long, depending on the trend sentiment: reverse or trending. 
 
